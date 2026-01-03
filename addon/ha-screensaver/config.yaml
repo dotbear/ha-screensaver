@@ -1,5 +1,5 @@
 name: Home Assistant Screensaver
-version: "1.0.0"
+version: "1.1.0"
 slug: ha-screensaver
 description: Photo slideshow screensaver for Home Assistant with idle detection
 arch:
@@ -7,16 +7,17 @@ arch:
   - amd64
   - armv7
 init: false
-ports:
-  8080/tcp: 8080
-ports_description:
-  8080/tcp: Web interface
+ingress: true
+ingress_port: 8080
+panel_icon: mdi:camera-timer
 map:
   - media:rw
   - share:rw
 options:
   idle_timeout_seconds: 60
+  slide_interval_seconds: 5
   photos_source: "media"
 schema:
   idle_timeout_seconds: int(1,3600)
+  slide_interval_seconds: int(1,60)
   photos_source: list(media|share|addon)?

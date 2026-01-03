@@ -121,6 +121,10 @@ class ScreensaverApp {
         const slideshow = document.getElementById('slideshow');
         slideshow.classList.add('active');
         
+        // Hide settings button when slideshow is active
+        const settingsButton = document.getElementById('settings-button');
+        settingsButton.style.display = 'none';
+        
         // Clear any existing slides
         slideshow.innerHTML = '';
         
@@ -151,7 +155,18 @@ class ScreensaverApp {
         if (slides.length === 0) return;
 
         slides[this.currentSlideIndex].classList.remove('active');
-        this.currentSlideIndex = (this.currentSlideIndex + 1) % slides.length;
+        
+        // Pick a random slide that's different from the current one
+        let nextIndex;
+        if (slides.length > 1) {
+            do {
+                nextIndex = Math.floor(Math.random() * slides.length);
+            } while (nextIndex === this.currentSlideIndex);
+        } else {
+            nextIndex = 0;
+        }
+        
+        this.currentSlideIndex = nextIndex;
         slides[this.currentSlideIndex].classList.add('active');
     }
 
@@ -161,6 +176,10 @@ class ScreensaverApp {
         
         const slideshow = document.getElementById('slideshow');
         slideshow.classList.remove('active');
+        
+        // Show settings button when slideshow stops
+        const settingsButton = document.getElementById('settings-button');
+        settingsButton.style.display = 'block';
         
         clearInterval(this.slideInterval);
         this.slideInterval = null;
