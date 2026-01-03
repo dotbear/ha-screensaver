@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home Assistant Screensaver</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        #ha-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        #slideshow {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: none;
+            z-index: 1000;
+        }
+
+        #slideshow.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .slide {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .slide.active {
+            opacity: 1;
+        }
+
+        .slide img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        #settings-button {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 2000;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        #settings-button:hover {
+            background: rgba(0, 0, 0, 0.9);
+        }
+
+        #settings-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #settings-modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .modal-content h2 {
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .button-group button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .save-button {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .cancel-button {
+            background: #f44336;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <iframe id="ha-iframe" name="ha-main-window" src="" allow="microphone; camera; geolocation"></iframe>
+    
+    <div id="slideshow">
+        <!-- Slides will be dynamically added here -->
+    </div>
+
+    <button id="settings-button">⚙️ Settings</button>
+
+    <div id="settings-modal">
+        <div class="modal-content">
+            <h2>Settings</h2>
+            <div class="form-group">
+                <label for="ha-url">Home Assistant URL:</label>
+                <input type="text" id="ha-url" placeholder="http://homeassistant.local:8123">
+            </div>
+            <div class="form-group">
+                <label for="idle-timeout">Idle Timeout (seconds):</label>
+                <input type="number" id="idle-timeout" value="60">
+            </div>
+            <div class="form-group">
+                <label for="album-ids">Google Photos Album IDs (comma-separated):</label>
+                <input type="text" id="album-ids" placeholder="album1,album2,album3">
+            </div>
+            <div class="button-group">
+                <button class="save-button" id="save-settings">Save</button>
+                <button class="cancel-button" id="cancel-settings">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>
