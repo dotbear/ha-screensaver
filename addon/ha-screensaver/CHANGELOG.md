@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.0 (2026-01-03)
+
+### Features
+- Added on-screen clock display during slideshow with time and date
+- Adaptive clock color - automatically switches between white and black text based on image brightness for optimal readability
+- Random slide selection - photos now appear in random order instead of sequential
+- Configurable slide interval - set custom duration (1-60 seconds) for how long each photo displays
+- Settings button auto-hides during slideshow for cleaner display
+
+### Improvements
+- Removed redundant clock font configuration options (now uses clean default styling)
+- Enhanced slideshow experience with smart color adaptation
+
 ## 1.0.0 (2026-01-03)
 
 ### Features
