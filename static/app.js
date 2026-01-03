@@ -30,7 +30,7 @@ class ScreensaverApp {
             console.error('Error loading config:', error);
             this.config = {
                 home_assistant_url: 'http://homeassistant.local:8123',
-                google_photos_album_ids: [],
+                photos_folder: './photos',
                 idle_timeout_seconds: 60
             };
         }
@@ -173,11 +173,11 @@ class ScreensaverApp {
         const modal = document.getElementById('settings-modal');
         const haUrl = document.getElementById('ha-url');
         const idleTimeout = document.getElementById('idle-timeout');
-        const albumIds = document.getElementById('album-ids');
+        const photosFolder = document.getElementById('photos-folder');
 
         haUrl.value = this.config.home_assistant_url;
         idleTimeout.value = this.config.idle_timeout_seconds;
-        albumIds.value = this.config.google_photos_album_ids.join(',');
+        photosFolder.value = this.config.photos_folder;
 
         modal.classList.add('active');
     }
@@ -185,14 +185,11 @@ class ScreensaverApp {
     async saveSettings() {
         const haUrl = document.getElementById('ha-url').value;
         const idleTimeout = parseInt(document.getElementById('idle-timeout').value);
-        const albumIds = document.getElementById('album-ids').value
-            .split(',')
-            .map(id => id.trim())
-            .filter(id => id.length > 0);
+        const photosFolder = document.getElementById('photos-folder').value;
 
         const newConfig = {
             home_assistant_url: haUrl,
-            google_photos_album_ids: albumIds,
+            photos_folder: photosFolder,
             idle_timeout_seconds: idleTimeout
         };
 

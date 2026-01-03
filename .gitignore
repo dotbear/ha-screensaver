@@ -2,8 +2,10 @@
 /target
 Cargo.lock
 
-# Config
+# Config and sensitive files
 config.json
+oauth_config.json
+token.json
 
 # IDE
 .vscode/

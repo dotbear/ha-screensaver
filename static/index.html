@@ -152,6 +152,20 @@
             background: #f44336;
             color: white;
         }
+
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 12px;
+            margin-top: 10px;
+            border-radius: 4px;
+        }
+
+        .info-box p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #333;
+        }
     </style>
 </head>
 <body>
@@ -175,8 +189,14 @@
                 <input type="number" id="idle-timeout" value="60">
             </div>
             <div class="form-group">
-                <label for="album-ids">Google Photos Album IDs (comma-separated):</label>
-                <input type="text" id="album-ids" placeholder="album1,album2,album3">
+                <label for="photos-folder">Photos Folder Path:</label>
+                <input type="text" id="photos-folder" placeholder="./photos">
+                <div class="info-box">
+                    <p><strong>How to add photos:</strong></p>
+                    <p>1. Place image files (.jpg, .png, .gif, .webp) in the photos folder</p>
+                    <p>2. The screensaver will automatically load them</p>
+                    <p>3. Default folder: <code>./photos</code> (relative to app location)</p>
+                </div>
             </div>
             <div class="button-group">
                 <button class="save-button" id="save-settings">Save</button>

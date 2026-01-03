@@ -1,22 +1,22 @@
 # Home Assistant Screensaver
 
-A Rust-based web application that displays your Home Assistant UI and automatically switches to a Google Photos slideshow after a period of inactivity.
+A Rust-based web application that displays your Home Assistant UI and automatically switches to a photo slideshow after a period of inactivity.
 
 ## Features
 
 - Displays Home Assistant UI in an iframe
 - Automatic idle detection with configurable timeout
-- Slideshow of photos from Google Photos albums
+- Slideshow of photos from a local folder
 - Touch/click to exit slideshow and return to Home Assistant
 - Persistent configuration via JSON file
 - Settings UI for easy configuration
+- Supports JPG, PNG, GIF, and WebP images
 
 ## Prerequisites
 
 - Rust and Cargo (install from [rustup.rs](https://rustup.rs/))
 - A Home Assistant instance
 - A browser that allows iframe embedding (Chrome, Edge, Safari - Firefox may block due to X-Frame-Options)
-- (Optional) Google Photos API credentials for actual photo fetching
 
 ## Installation
 
@@ -25,7 +25,13 @@ A Rust-based web application that displays your Home Assistant UI and automatica
 cargo build --release
 ```
 
-2. Run the server:
+2. Create a photos folder and add your photos:
+```bash
+mkdir -p photos
+cp /path/to/your/photos/*.jpg photos/
+```
+
+3. Run the server:
 ```bash
 cargo run --release
 ```
@@ -41,7 +47,7 @@ The server will start on `http://0.0.0.0:8080`
 3. Configure:
    - **Home Assistant URL**: Your Home Assistant instance URL (e.g., `http://homeassistant.local:8123`)
    - **Idle Timeout**: Number of seconds before slideshow starts (default: 60)
-   - **Google Photos Album IDs**: Comma-separated list of album IDs (currently using placeholder images)
+   - **Photos Folder**: Path to your photos folder (default: `./photos`)
 
 ### Via config.json
 
@@ -50,7 +56,7 @@ The configuration is stored in `config.json` in the project root. You can also e
 ```json
 {
   "home_assistant_url": "http://homeassistant.local:8123",
-  "google_photos_album_ids": [],
+  "photos_folder": "./photos",
   "idle_timeout_seconds": 60
 }
 ```
@@ -64,21 +70,49 @@ The configuration is stored in `config.json` in the project root. You can also e
 5. After the configured idle period, the slideshow will automatically start
 6. Touch the screen to exit the slideshow and return to Home Assistant
 
-## Google Photos Integration
+## Adding Photos
 
-Currently, the application uses placeholder images from Lorem Picsum. To integrate with actual Google Photos:
+### From Local Storage
 
-1. Set up Google Photos API credentials
-2. Implement OAuth2 flow in the Rust backend
-3. Update the `/api/photos` endpoint to fetch from Google Photos API
+Simply copy image files to the `photos` folder:
 
-See the Google Photos API documentation: https://developers.google.com/photos
+```bash
+cp ~/Pictures/*.jpg photos/
+```
+
+### From Home Assistant Media Folder
+
+If you want to use photos from your Home Assistant's media folder:
+
+1. Find your Home Assistant media folder location (usually `/config/media` or similar)
+2. Either:
+   - Copy photos to the screensaver's photos folder, OR
+   - Update the `photos_folder` setting to point to your HA media folder
+
+### Auto-upload from iPhone
+
+**Note:** Google Photos API no longer supports automatic album access as of March 31, 2025. Here are alternative solutions:
+
+1. **File Sync Apps** (Recommended):
+   - Install **PhotoSync**, **Documents by Readdle**, or similar on iPhone
+   - Configure auto-upload to your computer/server via SMB, WebDAV, or FTP
+   - Point the screensaver to the sync destination folder
+
+2. **iCloud Photos**:
+   - Enable iCloud Photos on your iPhone
+   - Use iCloud for Windows/Mac to sync photos locally
+   - Point the screensaver to the iCloud Photos folder
+
+3. **Manual Transfer**:
+   - Periodically copy photos from iPhone via AirDrop, USB, or file transfer
+   - Add them to the photos folder
 
 ## API Endpoints
 
 - `GET /api/config` - Get current configuration
 - `POST /api/config` - Update configuration
 - `GET /api/photos` - Get list of photo URLs for slideshow
+- `GET /photos/*` - Serve photos from the photos folder
 
 ## Development
 
