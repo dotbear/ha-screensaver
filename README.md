@@ -10,13 +10,14 @@ Perfect for wall-mounted tablets running Home Assistant!
 - ⏱️ Automatic idle detection with configurable timeout
 - 📸 Photo slideshow from Home Assistant media library with random selection
 - 🕐 On-screen clock with adaptive color (auto-adjusts to image brightness)
+- 📍 EXIF photo info display (location and date)
+- 🌤️ Weather overlay from Home Assistant weather entities
 - ⚡ Configurable slide duration (1-60 seconds)
 - 👆 Touch/click to exit slideshow and return to Home Assistant
 - ⏪ Tap left edge of screen to go back to previous photo
 - ⚙️ Easy configuration via Home Assistant UI
 - 🎨 Supports JPG, PNG, GIF, and WebP images
 - 🚀 Optimized for Home Assistant Green (ARM devices)
-- 🐍 Lightweight Python implementation
 
 ## Installation
 
@@ -74,6 +75,8 @@ Configure via the Home Assistant add-on configuration UI:
 idle_timeout_seconds: 60      # Time before slideshow starts (1-3600)
 slide_interval_seconds: 5     # Duration each photo displays (1-60)
 photos_source: media          # Where to find photos: "media", "share", or "addon"
+clock_position: bottom-center # Clock position: bottom-center, top-center, top-left, top-right, bottom-left, bottom-right
+weather_entity: ""            # HA weather entity ID (e.g., "weather.home")
 ```
 
 ## Usage
@@ -99,7 +102,7 @@ This add-on was originally written in Rust but rewritten in Python for better Ho
 
 - **[INSTALL.md](addon/ha-screensaver/INSTALL.md)** - Detailed installation guide
 - **[BUG_FIXES.md](addon/ha-screensaver/BUG_FIXES.md)** - Bug analysis and fixes
-- **[app.py](addon/ha-screensaver/app.py)** - Source code (heavily commented!)
+- **[app.py](addon/ha-screensaver/app.py)** - Source code
 
 ## Development
 
@@ -122,15 +125,6 @@ python3 app.py
 ```
 
 Then open http://localhost:8080
-
-### For Elixir Developers
-
-The source code (`app.py`) includes detailed comments explaining Python concepts in terms of Elixir equivalents:
-
-- `try/except` explained as `case` pattern matching
-- List comprehensions compared to `Enum.map |> Enum.filter`
-- Flask decorators compared to Phoenix route macros
-- Dictionary operations compared to `Map` functions
 
 ## Troubleshooting
 
@@ -173,7 +167,8 @@ ha-screensaver/
 ## API Endpoints
 
 - `GET /api/config` - Get current configuration
-- `GET /api/photos` - Get list of photo URLs
+- `GET /api/photos` - Get list of photo URLs with EXIF metadata
+- `GET /api/weather` - Get weather data from Home Assistant
 - `GET /photos/<filename>` - Serve individual photo
 
 ## Contributing
@@ -182,7 +177,7 @@ Found a bug or have a feature request? Please check the documentation first:
 
 1. **Installation issues:** See [INSTALL.md](addon/ha-screensaver/INSTALL.md)
 2. **Known bugs:** See [BUG_FIXES.md](addon/ha-screensaver/BUG_FIXES.md)
-3. **Code questions:** See inline comments in [app.py](addon/ha-screensaver/app.py)
+3. **Code questions:** See [app.py](addon/ha-screensaver/app.py)
 
 ## License
 
@@ -192,4 +187,3 @@ MIT
 
 - Originally inspired by the need for a simple Home Assistant screensaver
 - Migrated from Rust to Python for better HA Green compatibility
-- Designed with Elixir developers in mind (extensive Elixir equivalents in comments)
