@@ -1,13 +1,10 @@
 # Python dependencies for Home Assistant Screensaver
-# Similar to mix.exs dependencies in Elixir
 
-# Flask - Lightweight web framework (like Phoenix but simpler)
+# Flask - Lightweight web framework
 Flask==3.0.0
 
 # Flask-CORS - Handle Cross-Origin Resource Sharing
-# Allows the frontend to make API calls from different origins
 flask-cors==4.0.0
 
 # Gunicorn - Production WSGI server
-# Similar to Cowboy in Elixir - handles concurrent HTTP requests efficiently
 gunicorn==21.2.0

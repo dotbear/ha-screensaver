@@ -293,8 +293,7 @@ If not specified, defaults are:
 ## Support
 
 - **Logs:** Settings → Add-ons → HA Screensaver → Log
-- **Code:** Check `app.py` (heavily commented with Elixir comparisons!)
+- **Code:** Check `app.py`
 - **Bugs:** See `BUG_FIXES.md` for known issues and fixes
-- **Migration:** See `PYTHON_MIGRATION.md` for Rust → Python changes
 
 The Python version is production-ready and well-documented! 🎉

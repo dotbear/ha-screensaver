@@ -3,6 +3,9 @@ class ScreensaverApp {
         this.config = null;
         this.photos = [];
         this.currentSlideIndex = 0;
+        this.slideHistory = [];
+        this.photoExif = {};
+        this.weather = null;
         this.idleTimer = null;
         this.slideInterval = null;
         this.clockInterval = null;
@@ -47,7 +50,9 @@ class ScreensaverApp {
     async loadPhotos() {
         try {
             const response = await fetch('/api/photos');
-            this.photos = await response.json();
+            const data = await response.json();
+            // API returns [{url, exif}, ...] -- store full objects
+            this.photos = data;
             console.log('Photos loaded:', this.photos.length);
         } catch (error) {
             console.error('Error loading photos:', error);
@@ -56,66 +61,62 @@ class ScreensaverApp {
     }
 
     setupEventListeners() {
-        const settingsButton = document.getElementById('settings-button');
-        const settingsModal = document.getElementById('settings-modal');
-        const saveButton = document.getElementById('save-settings');
-        const cancelButton = document.getElementById('cancel-settings');
+        const slideshow = document.getElementById('slideshow');
 
-        settingsButton.addEventListener('click', () => {
-            this.openSettings();
-        });
+        const handleSlideshowInteraction = (e) => {
+            if (!this.isScreensaverActive) return;
+            e.preventDefault();
+            e.stopPropagation();
 
-        saveButton.addEventListener('click', () => {
-            this.saveSettings();
-        });
+            const x = e.touches ? e.touches[0].clientX : e.clientX;
 
-        cancelButton.addEventListener('click', () => {
-            settingsModal.classList.remove('active');
-        });
-
-        // Click on modal background to close
-        settingsModal.addEventListener('click', (e) => {
-            if (e.target === settingsModal) {
-                settingsModal.classList.remove('active');
+            if (x < window.innerWidth * 0.1) {
+                // Left 10% of screen - go back one image
+                this.previousSlide();
+                this.resetSlideTimer();
+            } else {
+                this.stopScreensaver();
             }
-        });
+        };
 
-        // Activity detection to exit slideshow
-        const activityEvents = ['mousedown', 'touchstart', 'click'];
-        activityEvents.forEach(event => {
-            document.getElementById('slideshow').addEventListener(event, (e) => {
-                if (this.isScreensaverActive) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    this.stopScreensaver();
-                }
-            });
+        ['mousedown', 'touchstart'].forEach(event => {
+            slideshow.addEventListener(event, handleSlideshowInteraction);
         });
     }
 
     setupIdleDetection() {
-        const resetIdleTimer = () => {
-            // Don't reset timer if screensaver is active
-            if (this.isScreensaverActive) return;
-            
-            clearTimeout(this.idleTimer);
-            this.idleTimer = setTimeout(() => {
-                this.startScreensaver();
-            }, this.config.idle_timeout_seconds * 1000);
-        };
+        // Only attach listeners once to avoid duplicates on repeated calls
+        if (!this._idleListenersAttached) {
+            this._idleListenersAttached = true;
 
-        // Events that indicate user activity
-        const activityEvents = [
-            'mousedown', 'mousemove', 'keypress', 
-            'scroll', 'touchstart', 'click'
-        ];
+            const resetIdleTimer = () => {
+                if (this.isScreensaverActive) return;
+                clearTimeout(this.idleTimer);
+                this.idleTimer = setTimeout(() => {
+                    this.startScreensaver();
+                }, this.config.idle_timeout_seconds * 1000);
+            };
 
-        activityEvents.forEach(event => {
-            document.addEventListener(event, resetIdleTimer, true);
-        });
+            const activityEvents = [
+                'mousedown', 'mousemove', 'keypress',
+                'scroll', 'touchstart', 'click'
+            ];
 
-        // Start the initial timer
-        resetIdleTimer();
+            activityEvents.forEach(event => {
+                document.addEventListener(event, resetIdleTimer, true);
+            });
+
+            // Detect interaction within the HA iframe -- clicking inside the
+            // iframe causes the parent window to lose focus
+            window.addEventListener('blur', resetIdleTimer);
+            window.addEventListener('focus', resetIdleTimer);
+        }
+
+        // Start/restart the idle timer
+        clearTimeout(this.idleTimer);
+        this.idleTimer = setTimeout(() => {
+            this.startScreensaver();
+        }, this.config.idle_timeout_seconds * 1000);
     }
 
     startScreensaver() {
@@ -126,39 +127,50 @@ class ScreensaverApp {
 
         console.log('Starting screensaver');
         this.isScreensaverActive = true;
+        clearInterval(this.slideInterval);
+        clearInterval(this.clockInterval);
         const slideshow = document.getElementById('slideshow');
         slideshow.classList.add('active');
         
-        // Hide settings button when slideshow is active
-        const settingsButton = document.getElementById('settings-button');
-        settingsButton.style.display = 'none';
-        
-        // Clear any existing slides but preserve the clock
+        // Clear any existing slides but preserve overlay elements
         const clockElement = document.getElementById('screensaver-clock');
+        const weatherElement = document.getElementById('weather-info');
         slideshow.innerHTML = '';
-        if (clockElement) {
-            slideshow.appendChild(clockElement);
-        }
+        if (clockElement) slideshow.appendChild(clockElement);
+        if (weatherElement) slideshow.appendChild(weatherElement);
         
-        // Create slides
+        // Pick a random starting slide
+        const startIndex = Math.floor(Math.random() * this.photos.length);
+
+        // Create slides and store EXIF data per index
+        this.photoExif = {};
         this.photos.forEach((photo, index) => {
             const slide = document.createElement('div');
             slide.className = 'slide';
-            if (index === 0) slide.classList.add('active');
-            
+            if (index === startIndex) slide.classList.add('active');
+
             const img = document.createElement('img');
-            img.src = photo;
+            img.src = photo.url;
             img.alt = `Photo ${index + 1}`;
-            
+
             slide.appendChild(img);
             slideshow.appendChild(slide);
+            this.photoExif[index] = photo.exif || {};
         });
 
-        this.currentSlideIndex = 0;
-        
+        this.currentSlideIndex = startIndex;
+        this.slideHistory = [];
+
+        // Apply clock position and show initial photo info
+        this.applyClockPosition();
+        this.updatePhotoInfo(startIndex);
+
+        // Load weather data
+        this.loadWeather();
+
         // Start the clock
         this.startClock();
-        
+
         // Change slide based on configured interval
         this.slideInterval = setInterval(() => {
             this.nextSlide();
@@ -169,8 +181,10 @@ class ScreensaverApp {
         const slides = document.querySelectorAll('.slide');
         if (slides.length === 0) return;
 
+        if (this.slideHistory.length >= 100) this.slideHistory.shift();
+        this.slideHistory.push(this.currentSlideIndex);
         slides[this.currentSlideIndex].classList.remove('active');
-        
+
         // Pick a random slide that's different from the current one
         let nextIndex;
         if (slides.length > 1) {
@@ -183,9 +197,28 @@ class ScreensaverApp {
         
         this.currentSlideIndex = nextIndex;
         slides[this.currentSlideIndex].classList.add('active');
-        
-        // Update clock color based on new image
+
         this.updateClockColor(slides[this.currentSlideIndex]);
+        this.updatePhotoInfo(this.currentSlideIndex);
+    }
+
+    previousSlide() {
+        const slides = document.querySelectorAll('.slide');
+        if (slides.length === 0 || this.slideHistory.length === 0) return;
+
+        slides[this.currentSlideIndex].classList.remove('active');
+        this.currentSlideIndex = this.slideHistory.pop();
+        slides[this.currentSlideIndex].classList.add('active');
+
+        this.updateClockColor(slides[this.currentSlideIndex]);
+        this.updatePhotoInfo(this.currentSlideIndex);
+    }
+
+    resetSlideTimer() {
+        clearInterval(this.slideInterval);
+        this.slideInterval = setInterval(() => {
+            this.nextSlide();
+        }, this.config.slide_interval_seconds * 1000);
     }
 
     startClock() {
@@ -222,8 +255,8 @@ class ScreensaverApp {
 
     updateClockColor(slideElement) {
         const img = slideElement.querySelector('img');
-        if (!img || !img.complete) {
-            // Default to white if image not loaded
+        if (!img || !img.complete || img.naturalHeight === 0) {
+            // Default to white if image not loaded or failed to load
             this.setClockColor(true);
             return;
         }
@@ -319,16 +352,68 @@ class ScreensaverApp {
         }
     }
 
+    applyClockPosition() {
+        const clock = document.getElementById('screensaver-clock');
+        const pos = this.config.clock_position || 'bottom-center';
+        // Remove any existing position class and apply new one
+        clock.className = clock.className.replace(/\bpos-\S+/g, '').trim();
+        clock.classList.add(`pos-${pos}`);
+    }
+
+    updatePhotoInfo(slideIndex) {
+        const el = document.getElementById('photo-info');
+        if (!el) return;
+        const exif = this.photoExif[slideIndex] || {};
+        const parts = [];
+        if (exif.location) parts.push(`\uD83D\uDCCD ${exif.location}`);
+        if (exif.date) parts.push(`\uD83D\uDCC5 ${exif.date}`);
+        el.textContent = parts.join('   ');
+    }
+
+    async loadWeather() {
+        if (!this.config.weather_entity) return;
+        try {
+            const response = await fetch('/api/weather');
+            if (!response.ok) return;
+            this.weather = await response.json();
+            this.updateWeatherDisplay();
+        } catch (e) {
+            console.error('Error loading weather:', e);
+        }
+    }
+
+    updateWeatherDisplay() {
+        const el = document.getElementById('weather-info');
+        if (!el || !this.weather) { if (el) el.textContent = ''; return; }
+
+        const icons = {
+            'sunny': '\u2600\uFE0F', 'clear-night': '\uD83C\uDF19',
+            'cloudy': '\u2601\uFE0F', 'partlycloudy': '\u26C5',
+            'rainy': '\uD83C\uDF27\uFE0F', 'pouring': '\uD83C\uDF27\uFE0F',
+            'snowy': '\uD83C\uDF28\uFE0F', 'snowy-rainy': '\uD83C\uDF28\uFE0F',
+            'windy': '\uD83D\uDCA8', 'windy-variant': '\uD83D\uDCA8',
+            'fog': '\uD83C\uDF2B\uFE0F', 'hail': '\uD83C\uDF28\uFE0F',
+            'lightning': '\u26C8\uFE0F', 'lightning-rainy': '\u26C8\uFE0F',
+            'exceptional': '\u26A0\uFE0F'
+        };
+
+        const icon = icons[this.weather.condition] || '';
+        let temp = this.weather.temperature;
+        if (temp !== null && temp !== undefined) {
+            // Always display in Celsius
+            if (this.weather.temperature_unit === '\u00b0F' || this.weather.temperature_unit === '°F') {
+                temp = (temp - 32) * 5 / 9;
+            }
+            el.textContent = `${icon} ${Math.round(temp)}\u00b0C`;
+        }
+    }
+
     stopScreensaver() {
         console.log('Stopping screensaver');
         this.isScreensaverActive = false;
         
         const slideshow = document.getElementById('slideshow');
         slideshow.classList.remove('active');
-        
-        // Show settings button when slideshow stops
-        const settingsButton = document.getElementById('settings-button');
-        settingsButton.style.display = 'block';
         
         clearInterval(this.slideInterval);
         this.slideInterval = null;
@@ -340,72 +425,6 @@ class ScreensaverApp {
         this.setupIdleDetection();
     }
 
-    openSettings() {
-        const modal = document.getElementById('settings-modal');
-        const haUrl = document.getElementById('ha-url');
-        const idleTimeout = document.getElementById('idle-timeout');
-        const slideInterval = document.getElementById('slide-interval');
-        const photosFolder = document.getElementById('photos-folder');
-
-        haUrl.value = this.config.home_assistant_url;
-        idleTimeout.value = this.config.idle_timeout_seconds;
-        slideInterval.value = this.config.slide_interval_seconds;
-        photosFolder.value = this.config.photos_folder;
-
-        modal.classList.add('active');
-    }
-
-    async saveSettings() {
-        const haUrl = document.getElementById('ha-url').value;
-        const idleTimeout = parseInt(document.getElementById('idle-timeout').value);
-        const slideInterval = parseInt(document.getElementById('slide-interval').value);
-        const photosFolder = document.getElementById('photos-folder').value;
-
-        const newConfig = {
-            home_assistant_url: haUrl,
-            photos_folder: photosFolder,
-            idle_timeout_seconds: idleTimeout,
-            slide_interval_seconds: slideInterval
-        };
-
-        try {
-            const response = await fetch('/api/config', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(newConfig)
-            });
-
-            if (response.ok) {
-                this.config = await response.json();
-                
-                // Ensure slide interval is present
-                if (!this.config.slide_interval_seconds) {
-                    this.config.slide_interval_seconds = slideInterval;
-                }
-                
-                // Reload iframe to apply new config
-                const iframe = document.getElementById('ha-iframe');
-                iframe.src = this.config.home_assistant_url;
-                
-                // Reload photos
-                await this.loadPhotos();
-                
-                // Close modal
-                document.getElementById('settings-modal').classList.remove('active');
-                
-                // Restart idle detection with new timeout
-                this.setupIdleDetection();
-                
-                console.log('Settings saved successfully');
-            } else {
-                console.error('Error saving settings');
-            }
-        } catch (error) {
-            console.error('Error saving settings:', error);
-        }
-    }
 }
 
 // Initialize the app when DOM is ready

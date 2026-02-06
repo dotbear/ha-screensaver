@@ -3,6 +3,7 @@ class ScreensaverApp {
         this.config = null;
         this.photos = [];
         this.currentSlideIndex = 0;
+        this.slideHistory = [];
         this.idleTimer = null;
         this.slideInterval = null;
         this.isScreensaverActive = false;
@@ -48,66 +49,62 @@ class ScreensaverApp {
     }
 
     setupEventListeners() {
-        const settingsButton = document.getElementById('settings-button');
-        const settingsModal = document.getElementById('settings-modal');
-        const saveButton = document.getElementById('save-settings');
-        const cancelButton = document.getElementById('cancel-settings');
+        const slideshow = document.getElementById('slideshow');
 
-        settingsButton.addEventListener('click', () => {
-            this.openSettings();
-        });
+        const handleSlideshowInteraction = (e) => {
+            if (!this.isScreensaverActive) return;
+            e.preventDefault();
+            e.stopPropagation();
 
-        saveButton.addEventListener('click', () => {
-            this.saveSettings();
-        });
+            const x = e.touches ? e.touches[0].clientX : e.clientX;
 
-        cancelButton.addEventListener('click', () => {
-            settingsModal.classList.remove('active');
-        });
-
-        // Click on modal background to close
-        settingsModal.addEventListener('click', (e) => {
-            if (e.target === settingsModal) {
-                settingsModal.classList.remove('active');
+            if (x < window.innerWidth * 0.1) {
+                // Left 10% of screen - go back one image
+                this.previousSlide();
+                this.resetSlideTimer();
+            } else {
+                this.stopScreensaver();
             }
-        });
+        };
 
-        // Activity detection to exit slideshow
-        const activityEvents = ['mousedown', 'touchstart', 'click'];
-        activityEvents.forEach(event => {
-            document.getElementById('slideshow').addEventListener(event, (e) => {
-                if (this.isScreensaverActive) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    this.stopScreensaver();
-                }
-            });
+        ['mousedown', 'touchstart'].forEach(event => {
+            slideshow.addEventListener(event, handleSlideshowInteraction);
         });
     }
 
     setupIdleDetection() {
-        const resetIdleTimer = () => {
-            // Don't reset timer if screensaver is active
-            if (this.isScreensaverActive) return;
-            
-            clearTimeout(this.idleTimer);
-            this.idleTimer = setTimeout(() => {
-                this.startScreensaver();
-            }, this.config.idle_timeout_seconds * 1000);
-        };
+        // Only attach listeners once to avoid duplicates on repeated calls
+        if (!this._idleListenersAttached) {
+            this._idleListenersAttached = true;
 
-        // Events that indicate user activity
-        const activityEvents = [
-            'mousedown', 'mousemove', 'keypress', 
-            'scroll', 'touchstart', 'click'
-        ];
+            const resetIdleTimer = () => {
+                if (this.isScreensaverActive) return;
+                clearTimeout(this.idleTimer);
+                this.idleTimer = setTimeout(() => {
+                    this.startScreensaver();
+                }, this.config.idle_timeout_seconds * 1000);
+            };
 
-        activityEvents.forEach(event => {
-            document.addEventListener(event, resetIdleTimer, true);
-        });
+            const activityEvents = [
+                'mousedown', 'mousemove', 'keypress',
+                'scroll', 'touchstart', 'click'
+            ];
 
-        // Start the initial timer
-        resetIdleTimer();
+            activityEvents.forEach(event => {
+                document.addEventListener(event, resetIdleTimer, true);
+            });
+
+            // Detect interaction within the HA iframe -- clicking inside the
+            // iframe causes the parent window to lose focus
+            window.addEventListener('blur', resetIdleTimer);
+            window.addEventListener('focus', resetIdleTimer);
+        }
+
+        // Start/restart the idle timer
+        clearTimeout(this.idleTimer);
+        this.idleTimer = setTimeout(() => {
+            this.startScreensaver();
+        }, this.config.idle_timeout_seconds * 1000);
     }
 
     startScreensaver() {
@@ -118,32 +115,33 @@ class ScreensaverApp {
 
         console.log('Starting screensaver');
         this.isScreensaverActive = true;
+        clearInterval(this.slideInterval);
         const slideshow = document.getElementById('slideshow');
         slideshow.classList.add('active');
-        
-        // Hide settings button when slideshow is active
-        const settingsButton = document.getElementById('settings-button');
-        settingsButton.style.display = 'none';
         
         // Clear any existing slides
         slideshow.innerHTML = '';
         
+        // Pick a random starting slide
+        const startIndex = Math.floor(Math.random() * this.photos.length);
+
         // Create slides
         this.photos.forEach((photo, index) => {
             const slide = document.createElement('div');
             slide.className = 'slide';
-            if (index === 0) slide.classList.add('active');
-            
+            if (index === startIndex) slide.classList.add('active');
+
             const img = document.createElement('img');
             img.src = photo;
             img.alt = `Photo ${index + 1}`;
-            
+
             slide.appendChild(img);
             slideshow.appendChild(slide);
         });
 
-        this.currentSlideIndex = 0;
-        
+        this.currentSlideIndex = startIndex;
+        this.slideHistory = [];
+
         // Change slide every 5 seconds
         this.slideInterval = setInterval(() => {
             this.nextSlide();
@@ -154,8 +152,10 @@ class ScreensaverApp {
         const slides = document.querySelectorAll('.slide');
         if (slides.length === 0) return;
 
+        if (this.slideHistory.length >= 100) this.slideHistory.shift();
+        this.slideHistory.push(this.currentSlideIndex);
         slides[this.currentSlideIndex].classList.remove('active');
-        
+
         // Pick a random slide that's different from the current one
         let nextIndex;
         if (slides.length > 1) {
@@ -170,81 +170,36 @@ class ScreensaverApp {
         slides[this.currentSlideIndex].classList.add('active');
     }
 
+    previousSlide() {
+        const slides = document.querySelectorAll('.slide');
+        if (slides.length === 0 || this.slideHistory.length === 0) return;
+
+        slides[this.currentSlideIndex].classList.remove('active');
+        this.currentSlideIndex = this.slideHistory.pop();
+        slides[this.currentSlideIndex].classList.add('active');
+    }
+
+    resetSlideTimer() {
+        clearInterval(this.slideInterval);
+        this.slideInterval = setInterval(() => {
+            this.nextSlide();
+        }, 5000);
+    }
+
     stopScreensaver() {
         console.log('Stopping screensaver');
         this.isScreensaverActive = false;
-        
+
         const slideshow = document.getElementById('slideshow');
         slideshow.classList.remove('active');
-        
-        // Show settings button when slideshow stops
-        const settingsButton = document.getElementById('settings-button');
-        settingsButton.style.display = 'block';
-        
+
         clearInterval(this.slideInterval);
         this.slideInterval = null;
-        
+
         // Restart idle detection
         this.setupIdleDetection();
     }
 
-    openSettings() {
-        const modal = document.getElementById('settings-modal');
-        const haUrl = document.getElementById('ha-url');
-        const idleTimeout = document.getElementById('idle-timeout');
-        const photosFolder = document.getElementById('photos-folder');
-
-        haUrl.value = this.config.home_assistant_url;
-        idleTimeout.value = this.config.idle_timeout_seconds;
-        photosFolder.value = this.config.photos_folder;
-
-        modal.classList.add('active');
-    }
-
-    async saveSettings() {
-        const haUrl = document.getElementById('ha-url').value;
-        const idleTimeout = parseInt(document.getElementById('idle-timeout').value);
-        const photosFolder = document.getElementById('photos-folder').value;
-
-        const newConfig = {
-            home_assistant_url: haUrl,
-            photos_folder: photosFolder,
-            idle_timeout_seconds: idleTimeout
-        };
-
-        try {
-            const response = await fetch('/api/config', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(newConfig)
-            });
-
-            if (response.ok) {
-                this.config = await response.json();
-                
-                // Reload iframe to apply new config
-                const iframe = document.getElementById('ha-iframe');
-                iframe.src = this.config.home_assistant_url;
-                
-                // Reload photos
-                await this.loadPhotos();
-                
-                // Close modal
-                document.getElementById('settings-modal').classList.remove('active');
-                
-                // Restart idle detection with new timeout
-                this.setupIdleDetection();
-                
-                console.log('Settings saved successfully');
-            } else {
-                console.error('Error saving settings');
-            }
-        } catch (error) {
-            console.error('Error saving settings:', error);
-        }
-    }
 }
 
 // Initialize the app when DOM is ready

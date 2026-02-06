@@ -7,6 +7,7 @@ arch:
   - amd64
   - armv7
 init: false
+homeassistant_api: true
 ingress: true
 ingress_port: 8080
 panel_icon: mdi:camera-timer
@@ -17,7 +18,11 @@ options:
   idle_timeout_seconds: 60
   slide_interval_seconds: 5
   photos_source: "media"
+  clock_position: "bottom-center"
+  weather_entity: ""
 schema:
   idle_timeout_seconds: int(1,3600)
   slide_interval_seconds: int(1,60)
   photos_source: list(media|share|addon)?
+  clock_position: list(bottom-center|top-center|top-left|top-right|bottom-left|bottom-right)?
+  weather_entity: str?

@@ -63,122 +63,22 @@
             object-fit: contain;
         }
 
-        #settings-button {
-            position: fixed;
-            bottom: 10px;
-            right: 10px;
-            z-index: 2000;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-
-        #settings-button:hover {
-            background: rgba(0, 0, 0, 0.9);
-        }
-
-        #settings-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            z-index: 3000;
-            align-items: center;
-            justify-content: center;
-        }
-
-        #settings-modal.active {
-            display: flex;
-        }
-
-        .modal-content {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            max-width: 500px;
-            width: 90%;
-        }
-
-        .modal-content h2 {
-            margin-bottom: 20px;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-
-        .form-group input {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        .button-group button {
-            flex: 1;
-            padding: 10px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-
-        .save-button {
-            background: #4CAF50;
-            color: white;
-        }
-
-        .cancel-button {
-            background: #f44336;
-            color: white;
-        }
-
-        .info-box {
-            background: #e3f2fd;
-            border-left: 4px solid #2196F3;
-            padding: 12px;
-            margin-top: 10px;
-            border-radius: 4px;
-        }
-
-        .info-box p {
-            margin: 5px 0;
-            font-size: 14px;
-            color: #333;
-        }
-
         #screensaver-clock {
             position: absolute;
-            bottom: 40px;
-            left: 50%;
-            transform: translateX(-50%);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             z-index: 1001;
-            transition: color 0.3s ease;
-            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            transition: color 0.3s ease, text-shadow 0.3s ease;
             pointer-events: none;
             text-align: center;
         }
+
+        /* Clock position variants */
+        #screensaver-clock.pos-bottom-center { bottom: 40px; left: 50%; transform: translateX(-50%); }
+        #screensaver-clock.pos-top-center { top: 40px; left: 50%; transform: translateX(-50%); }
+        #screensaver-clock.pos-top-left { top: 40px; left: 40px; text-align: left; }
+        #screensaver-clock.pos-top-right { top: 40px; right: 40px; text-align: right; }
+        #screensaver-clock.pos-bottom-left { bottom: 40px; left: 40px; text-align: left; }
+        #screensaver-clock.pos-bottom-right { bottom: 40px; right: 40px; text-align: right; }
 
         #clock-time {
             font-size: 72px;
@@ -196,12 +96,35 @@
             line-height: 1.2;
         }
 
+        #photo-info {
+            font-size: 16px;
+            font-weight: 300;
+            margin-top: 12px;
+            opacity: 0.7;
+            letter-spacing: 0.5px;
+        }
+
         #screensaver-clock.white {
             color: white;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 0, 0, 0.4);
         }
 
         #screensaver-clock.black {
             color: black;
+            text-shadow: 0 1px 4px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.4);
+        }
+
+        #weather-info {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 28px;
+            font-weight: 500;
+            color: white;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 0, 0, 0.4);
+            z-index: 1001;
+            pointer-events: none;
         }
     </style>
 </head>
@@ -213,41 +136,9 @@
         <div id="screensaver-clock">
             <div id="clock-time"></div>
             <div id="clock-date"></div>
+            <div id="photo-info"></div>
         </div>
-    </div>
-
-    <button id="settings-button">⚙️ Settings</button>
-
-    <div id="settings-modal">
-        <div class="modal-content">
-            <h2>Settings</h2>
-            <div class="form-group">
-                <label for="ha-url">Home Assistant URL:</label>
-                <input type="text" id="ha-url" placeholder="http://homeassistant.local:8123">
-            </div>
-            <div class="form-group">
-                <label for="idle-timeout">Idle Timeout (seconds):</label>
-                <input type="number" id="idle-timeout" value="60" min="1" max="3600">
-            </div>
-            <div class="form-group">
-                <label for="slide-interval">Slide Interval (seconds):</label>
-                <input type="number" id="slide-interval" value="5" min="1" max="60">
-            </div>
-            <div class="form-group">
-                <label for="photos-folder">Photos Folder Path:</label>
-                <input type="text" id="photos-folder" placeholder="./photos">
-                <div class="info-box">
-                    <p><strong>How to add photos:</strong></p>
-                    <p>1. Place image files (.jpg, .png, .gif, .webp) in the photos folder</p>
-                    <p>2. The screensaver will automatically load them</p>
-                    <p>3. Default folder: <code>./photos</code> (relative to app location)</p>
-                </div>
-            </div>
-            <div class="button-group">
-                <button class="save-button" id="save-settings">Save</button>
-                <button class="cancel-button" id="cancel-settings">Cancel</button>
-            </div>
-        </div>
+        <div id="weather-info"></div>
     </div>
 
     <script src="/app.js"></script>
