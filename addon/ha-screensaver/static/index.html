@@ -70,8 +70,7 @@
             transform: translateX(-50%);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             z-index: 1001;
-            transition: color 0.3s ease;
-            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            transition: color 0.3s ease, text-shadow 0.3s ease;
             pointer-events: none;
             text-align: center;
         }
@@ -94,10 +93,12 @@
 
         #screensaver-clock.white {
             color: white;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 0, 0, 0.4);
         }
 
         #screensaver-clock.black {
             color: black;
+            text-shadow: 0 1px 4px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.4);
         }
     </style>
 </head>

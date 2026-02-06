@@ -12,6 +12,7 @@ Perfect for wall-mounted tablets running Home Assistant!
 - 🕐 On-screen clock with adaptive color (auto-adjusts to image brightness)
 - ⚡ Configurable slide duration (1-60 seconds)
 - 👆 Touch/click to exit slideshow and return to Home Assistant
+- ⏪ Tap left edge of screen to go back to previous photo
 - ⚙️ Easy configuration via Home Assistant UI
 - 🎨 Supports JPG, PNG, GIF, and WebP images
 - 🚀 Optimized for Home Assistant Green (ARM devices)
@@ -81,7 +82,7 @@ photos_source: media          # Where to find photos: "media", "share", or "addo
 2. Your Home Assistant dashboard will be displayed
 3. After the configured idle time, photos will start with an on-screen clock
 4. Photos display in random order with adaptive text color for the clock
-5. Touch the screen to return to the dashboard
+5. Touch the screen to return to the dashboard (tap left edge to go back a photo)
 
 ## Why Python?
 
@@ -94,13 +95,10 @@ This add-on was originally written in Rust but rewritten in Python for better Ho
 | HA ecosystem | Uncommon | Standard 🏠 |
 | Maintenance | Complex | Simple ✅ |
 
-For more details, see [PYTHON_MIGRATION.md](PYTHON_MIGRATION.md)
-
 ## Documentation
 
 - **[INSTALL.md](addon/ha-screensaver/INSTALL.md)** - Detailed installation guide
 - **[BUG_FIXES.md](addon/ha-screensaver/BUG_FIXES.md)** - Bug analysis and fixes
-- **[PYTHON_MIGRATION.md](PYTHON_MIGRATION.md)** - Rust to Python migration info
 - **[app.py](addon/ha-screensaver/app.py)** - Source code (heavily commented!)
 
 ## Development
@@ -175,7 +173,6 @@ ha-screensaver/
 ## API Endpoints
 
 - `GET /api/config` - Get current configuration
-- `POST /api/config` - Update configuration (with validation)
 - `GET /api/photos` - Get list of photo URLs
 - `GET /photos/<filename>` - Serve individual photo
 

@@ -123,6 +123,8 @@ class ScreensaverApp {
 
         console.log('Starting screensaver');
         this.isScreensaverActive = true;
+        clearInterval(this.slideInterval);
+        clearInterval(this.clockInterval);
         const slideshow = document.getElementById('slideshow');
         slideshow.classList.add('active');
         
@@ -166,6 +168,7 @@ class ScreensaverApp {
         const slides = document.querySelectorAll('.slide');
         if (slides.length === 0) return;
 
+        if (this.slideHistory.length >= 100) this.slideHistory.shift();
         this.slideHistory.push(this.currentSlideIndex);
         slides[this.currentSlideIndex].classList.remove('active');
 
@@ -238,8 +241,8 @@ class ScreensaverApp {
 
     updateClockColor(slideElement) {
         const img = slideElement.querySelector('img');
-        if (!img || !img.complete) {
-            // Default to white if image not loaded
+        if (!img || !img.complete || img.naturalHeight === 0) {
+            // Default to white if image not loaded or failed to load
             this.setClockColor(true);
             return;
         }

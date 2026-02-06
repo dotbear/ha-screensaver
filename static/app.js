@@ -115,6 +115,7 @@ class ScreensaverApp {
 
         console.log('Starting screensaver');
         this.isScreensaverActive = true;
+        clearInterval(this.slideInterval);
         const slideshow = document.getElementById('slideshow');
         slideshow.classList.add('active');
         
@@ -151,6 +152,7 @@ class ScreensaverApp {
         const slides = document.querySelectorAll('.slide');
         if (slides.length === 0) return;
 
+        if (this.slideHistory.length >= 100) this.slideHistory.shift();
         this.slideHistory.push(this.currentSlideIndex);
         slides[this.currentSlideIndex].classList.remove('active');
 
