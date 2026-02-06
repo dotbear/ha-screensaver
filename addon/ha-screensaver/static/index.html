@@ -65,15 +65,20 @@
 
         #screensaver-clock {
             position: absolute;
-            bottom: 40px;
-            left: 50%;
-            transform: translateX(-50%);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             z-index: 1001;
             transition: color 0.3s ease, text-shadow 0.3s ease;
             pointer-events: none;
             text-align: center;
         }
+
+        /* Clock position variants */
+        #screensaver-clock.pos-bottom-center { bottom: 40px; left: 50%; transform: translateX(-50%); }
+        #screensaver-clock.pos-top-center { top: 40px; left: 50%; transform: translateX(-50%); }
+        #screensaver-clock.pos-top-left { top: 40px; left: 40px; text-align: left; }
+        #screensaver-clock.pos-top-right { top: 40px; right: 40px; text-align: right; }
+        #screensaver-clock.pos-bottom-left { bottom: 40px; left: 40px; text-align: left; }
+        #screensaver-clock.pos-bottom-right { bottom: 40px; right: 40px; text-align: right; }
 
         #clock-time {
             font-size: 72px;
@@ -91,6 +96,14 @@
             line-height: 1.2;
         }
 
+        #photo-info {
+            font-size: 16px;
+            font-weight: 300;
+            margin-top: 12px;
+            opacity: 0.7;
+            letter-spacing: 0.5px;
+        }
+
         #screensaver-clock.white {
             color: white;
             text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 0, 0, 0.4);
@@ -99,6 +112,19 @@
         #screensaver-clock.black {
             color: black;
             text-shadow: 0 1px 4px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.4);
+        }
+
+        #weather-info {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 28px;
+            font-weight: 500;
+            color: white;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 0, 0, 0.4);
+            z-index: 1001;
+            pointer-events: none;
         }
     </style>
 </head>
@@ -110,7 +136,9 @@
         <div id="screensaver-clock">
             <div id="clock-time"></div>
             <div id="clock-date"></div>
+            <div id="photo-info"></div>
         </div>
+        <div id="weather-info"></div>
     </div>
 
     <script src="/app.js"></script>

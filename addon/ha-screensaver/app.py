@@ -12,8 +12,16 @@ The Flask app is like a simpler version of Phoenix.Router with controllers.
 import os
 import json
 import logging
+import urllib.request
+from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+
+try:
+    from PIL import Image
+    HAS_PILLOW = True
+except ImportError:
+    HAS_PILLOW = False
 
 # Flask is a lightweight web framework (like Phoenix but simpler)
 # - Flask = Phoenix.Router + Controllers
@@ -42,7 +50,9 @@ DEFAULT_CONFIG = {
     "home_assistant_url": "http://homeassistant:8123",
     "photos_folder": "/media",
     "idle_timeout_seconds": 60,
-    "slide_interval_seconds": 5
+    "slide_interval_seconds": 5,
+    "clock_position": "bottom-center",
+    "weather_entity": ""
 }
 
 # ============================================================================
@@ -84,73 +94,91 @@ def load_config() -> Dict[str, Any]:
         return DEFAULT_CONFIG.copy()
 
 
-def get_image_files(folder_path: str) -> List[str]:
+def _gps_to_decimal(coords, ref) -> Optional[float]:
+    """Convert GPS EXIF coordinates (degrees, minutes, seconds) to decimal."""
+    if not coords or not ref:
+        return None
+    try:
+        degrees = float(coords[0])
+        minutes = float(coords[1])
+        seconds = float(coords[2])
+        decimal = degrees + minutes / 60 + seconds / 3600
+        if ref in ('S', 'W'):
+            decimal = -decimal
+        return decimal
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
+def extract_exif(file_path: str) -> Dict[str, str]:
+    """Extract date taken and GPS location from image EXIF data."""
+    if not HAS_PILLOW:
+        return {}
+    try:
+        img = Image.open(file_path)
+        exif_data = img._getexif()
+        if not exif_data:
+            return {}
+
+        result = {}
+
+        # DateTimeOriginal (EXIF tag 36867)
+        date_taken = exif_data.get(36867)
+        if date_taken:
+            try:
+                dt = datetime.strptime(date_taken, "%Y:%m:%d %H:%M:%S")
+                result['date'] = f"{dt.strftime('%B')} {dt.day}, {dt.year}"
+            except (ValueError, TypeError):
+                pass
+
+        # GPSInfo (EXIF tag 34853)
+        gps_info = exif_data.get(34853)
+        if gps_info:
+            lat = _gps_to_decimal(gps_info.get(2), gps_info.get(1))
+            lng = _gps_to_decimal(gps_info.get(4), gps_info.get(3))
+            if lat is not None and lng is not None:
+                lat_dir = 'N' if lat >= 0 else 'S'
+                lng_dir = 'E' if lng >= 0 else 'W'
+                result['location'] = f"{abs(lat):.1f}\u00b0{lat_dir}, {abs(lng):.1f}\u00b0{lng_dir}"
+
+        return result
+    except Exception:
+        return {}
+
+
+def get_image_files(folder_path: str) -> List[Dict[str, Any]]:
     """
-    Scan a folder for image files and return their URLs.
-    
-    Args:
-        folder_path: Path to folder containing images
-    
+    Scan a folder for image files and return their URLs with EXIF metadata.
+
     Returns:
-        list: List of relative URLs to images
-    
-    Elixir equivalent:
-        def get_image_files(folder_path) do
-          folder_path
-          |> File.ls!()
-          |> Enum.filter(&is_image_file?/1)
-          |> Enum.map(&build_photo_url/1)
-        end
-        
-        defp is_image_file?(filename) do
-          Path.extname(filename) in [".jpg", ".jpeg", ".png", ".gif", ".webp"]
-        end
-    
-    Python note: We use list comprehension, which is similar to Enum.map + Enum.filter
-    but more concise. The pattern [x for x in list if condition] is very Pythonic.
+        list: List of dicts with 'url' and 'exif' keys
     """
-    # Image extensions we support
-    # Elixir: @image_extensions ~w(.jpg .jpeg .png .gif .webp)
     image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
-    
+
     photos = []
     folder = Path(folder_path)
-    
-    # Check if folder exists and is readable
-    # Elixir: if File.dir?(folder_path) do ... end
+
     if not folder.exists():
         logger.warning(f"Photos folder does not exist: {folder_path}")
         return []
-    
+
     if not folder.is_dir():
         logger.warning(f"Photos path is not a directory: {folder_path}")
         return []
-    
+
     try:
-        # Iterate through all files in directory
-        # Elixir: File.ls!(folder_path) |> Enum.each(fn file -> ... end)
-        # 
-        # BUG FIX #1: Original Rust code used std::fs::read_dir which doesn't
-        # recurse into subdirectories. Adding recursive option here.
         for file_path in folder.iterdir():
-            # Only process files, not directories
             if file_path.is_file():
-                # Get file extension in lowercase
-                # Elixir: Path.extname(filename) |> String.downcase()
                 ext = file_path.suffix.lower()
-                
                 if ext in image_extensions:
-                    # Build URL path: /photos/filename.jpg
-                    # Elixir: "/photos/#{filename}"
                     photo_url = f"/photos/{file_path.name}"
-                    photos.append(photo_url)
-        
+                    exif = extract_exif(str(file_path))
+                    photos.append({"url": photo_url, "exif": exif})
+
         logger.info(f"Found {len(photos)} photos in {folder_path}")
-        return sorted(photos)  # Sort for consistent ordering
-        
+        return sorted(photos, key=lambda p: p["url"])
+
     except PermissionError as e:
-        # BUG FIX #2: Handle permission errors gracefully
-        # The Rust version would panic, Python handles it gracefully
         logger.error(f"Permission denied reading folder {folder_path}: {e}")
         return []
     except Exception as e:
@@ -208,6 +236,40 @@ def get_photos():
     # Return JSON array
     # Elixir: json(conn, photos)
     return jsonify(photos)
+
+
+@app.route('/api/weather', methods=['GET'])
+def get_weather():
+    """GET /api/weather - Proxy weather data from Home Assistant."""
+    config = load_config()
+    weather_entity = config.get('weather_entity', '')
+
+    if not weather_entity:
+        return jsonify(None)
+
+    supervisor_token = os.environ.get('SUPERVISOR_TOKEN', '')
+    if not supervisor_token:
+        logger.warning("No SUPERVISOR_TOKEN available for weather API")
+        return jsonify(None)
+
+    try:
+        url = f'http://supervisor/core/api/states/{weather_entity}'
+        req = urllib.request.Request(url, headers={
+            'Authorization': f'Bearer {supervisor_token}',
+            'Content-Type': 'application/json'
+        })
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read())
+
+        attrs = data.get('attributes', {})
+        return jsonify({
+            'condition': data.get('state', ''),
+            'temperature': attrs.get('temperature'),
+            'temperature_unit': attrs.get('temperature_unit', '°C')
+        })
+    except Exception as e:
+        logger.error(f"Error fetching weather: {e}")
+        return jsonify(None)
 
 
 @app.route('/photos/<path:filename>', methods=['GET'])

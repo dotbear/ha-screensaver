@@ -4,6 +4,8 @@ class ScreensaverApp {
         this.photos = [];
         this.currentSlideIndex = 0;
         this.slideHistory = [];
+        this.photoExif = {};
+        this.weather = null;
         this.idleTimer = null;
         this.slideInterval = null;
         this.clockInterval = null;
@@ -48,7 +50,9 @@ class ScreensaverApp {
     async loadPhotos() {
         try {
             const response = await fetch('/api/photos');
-            this.photos = await response.json();
+            const data = await response.json();
+            // API returns [{url, exif}, ...] -- store full objects
+            this.photos = data;
             console.log('Photos loaded:', this.photos.length);
         } catch (error) {
             console.error('Error loading photos:', error);
@@ -128,36 +132,45 @@ class ScreensaverApp {
         const slideshow = document.getElementById('slideshow');
         slideshow.classList.add('active');
         
-        // Clear any existing slides but preserve the clock
+        // Clear any existing slides but preserve overlay elements
         const clockElement = document.getElementById('screensaver-clock');
+        const weatherElement = document.getElementById('weather-info');
         slideshow.innerHTML = '';
-        if (clockElement) {
-            slideshow.appendChild(clockElement);
-        }
+        if (clockElement) slideshow.appendChild(clockElement);
+        if (weatherElement) slideshow.appendChild(weatherElement);
         
         // Pick a random starting slide
         const startIndex = Math.floor(Math.random() * this.photos.length);
 
-        // Create slides
+        // Create slides and store EXIF data per index
+        this.photoExif = {};
         this.photos.forEach((photo, index) => {
             const slide = document.createElement('div');
             slide.className = 'slide';
             if (index === startIndex) slide.classList.add('active');
 
             const img = document.createElement('img');
-            img.src = photo;
+            img.src = photo.url;
             img.alt = `Photo ${index + 1}`;
 
             slide.appendChild(img);
             slideshow.appendChild(slide);
+            this.photoExif[index] = photo.exif || {};
         });
 
         this.currentSlideIndex = startIndex;
         this.slideHistory = [];
-        
+
+        // Apply clock position and show initial photo info
+        this.applyClockPosition();
+        this.updatePhotoInfo(startIndex);
+
+        // Load weather data
+        this.loadWeather();
+
         // Start the clock
         this.startClock();
-        
+
         // Change slide based on configured interval
         this.slideInterval = setInterval(() => {
             this.nextSlide();
@@ -184,9 +197,9 @@ class ScreensaverApp {
         
         this.currentSlideIndex = nextIndex;
         slides[this.currentSlideIndex].classList.add('active');
-        
-        // Update clock color based on new image
+
         this.updateClockColor(slides[this.currentSlideIndex]);
+        this.updatePhotoInfo(this.currentSlideIndex);
     }
 
     previousSlide() {
@@ -198,6 +211,7 @@ class ScreensaverApp {
         slides[this.currentSlideIndex].classList.add('active');
 
         this.updateClockColor(slides[this.currentSlideIndex]);
+        this.updatePhotoInfo(this.currentSlideIndex);
     }
 
     resetSlideTimer() {
@@ -335,6 +349,59 @@ class ScreensaverApp {
         } else {
             clockElement.classList.remove('white');
             clockElement.classList.add('black');
+        }
+    }
+
+    applyClockPosition() {
+        const clock = document.getElementById('screensaver-clock');
+        const pos = this.config.clock_position || 'bottom-center';
+        // Remove any existing position class and apply new one
+        clock.className = clock.className.replace(/\bpos-\S+/g, '').trim();
+        clock.classList.add(`pos-${pos}`);
+    }
+
+    updatePhotoInfo(slideIndex) {
+        const el = document.getElementById('photo-info');
+        if (!el) return;
+        const exif = this.photoExif[slideIndex] || {};
+        const parts = [];
+        if (exif.location) parts.push(`\uD83D\uDCCD ${exif.location}`);
+        if (exif.date) parts.push(`\uD83D\uDCC5 ${exif.date}`);
+        el.textContent = parts.join('   ');
+    }
+
+    async loadWeather() {
+        if (!this.config.weather_entity) return;
+        try {
+            const response = await fetch('/api/weather');
+            if (!response.ok) return;
+            this.weather = await response.json();
+            this.updateWeatherDisplay();
+        } catch (e) {
+            console.error('Error loading weather:', e);
+        }
+    }
+
+    updateWeatherDisplay() {
+        const el = document.getElementById('weather-info');
+        if (!el || !this.weather) { if (el) el.textContent = ''; return; }
+
+        const icons = {
+            'sunny': '\u2600\uFE0F', 'clear-night': '\uD83C\uDF19',
+            'cloudy': '\u2601\uFE0F', 'partlycloudy': '\u26C5',
+            'rainy': '\uD83C\uDF27\uFE0F', 'pouring': '\uD83C\uDF27\uFE0F',
+            'snowy': '\uD83C\uDF28\uFE0F', 'snowy-rainy': '\uD83C\uDF28\uFE0F',
+            'windy': '\uD83D\uDCA8', 'windy-variant': '\uD83D\uDCA8',
+            'fog': '\uD83C\uDF2B\uFE0F', 'hail': '\uD83C\uDF28\uFE0F',
+            'lightning': '\u26C8\uFE0F', 'lightning-rainy': '\u26C8\uFE0F',
+            'exceptional': '\u26A0\uFE0F'
+        };
+
+        const icon = icons[this.weather.condition] || '';
+        const temp = this.weather.temperature;
+        const unit = this.weather.temperature_unit || '\u00b0C';
+        if (temp !== null && temp !== undefined) {
+            el.textContent = `${icon} ${Math.round(temp)}${unit}`;
         }
     }
 

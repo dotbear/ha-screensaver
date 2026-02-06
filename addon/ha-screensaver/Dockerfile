@@ -6,6 +6,7 @@ FROM $BUILD_FROM
 RUN apk add --no-cache \
     python3 \
     py3-pip \
+    py3-pillow \
     bash
 
 # Create app directory
