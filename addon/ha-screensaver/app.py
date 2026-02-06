@@ -12,6 +12,7 @@ The Flask app is like a simpler version of Phoenix.Router with controllers.
 import os
 import json
 import logging
+import time
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -110,8 +111,8 @@ def _gps_to_decimal(coords, ref) -> Optional[float]:
         return None
 
 
-def extract_exif(file_path: str) -> Dict[str, str]:
-    """Extract date taken and GPS location from image EXIF data."""
+def extract_exif(file_path: str) -> Dict[str, Any]:
+    """Extract date taken and raw GPS coordinates from image EXIF data."""
     if not HAS_PILLOW:
         return {}
     try:
@@ -131,27 +132,84 @@ def extract_exif(file_path: str) -> Dict[str, str]:
             except (ValueError, TypeError):
                 pass
 
-        # GPSInfo (EXIF tag 34853)
+        # GPSInfo (EXIF tag 34853) -- return raw coordinates for geocoding
         gps_info = exif_data.get(34853)
         if gps_info:
             lat = _gps_to_decimal(gps_info.get(2), gps_info.get(1))
             lng = _gps_to_decimal(gps_info.get(4), gps_info.get(3))
             if lat is not None and lng is not None:
-                lat_dir = 'N' if lat >= 0 else 'S'
-                lng_dir = 'E' if lng >= 0 else 'W'
-                result['location'] = f"{abs(lat):.1f}\u00b0{lat_dir}, {abs(lng):.1f}\u00b0{lng_dir}"
+                result['lat'] = lat
+                result['lng'] = lng
 
         return result
     except Exception:
         return {}
 
 
+# --------------- Reverse geocoding with disk cache ---------------
+
+GEOCACHE_FILE = Path("/app/geocache.json")
+
+
+def _load_geocache() -> Dict[str, Optional[str]]:
+    try:
+        if GEOCACHE_FILE.exists():
+            with open(GEOCACHE_FILE, 'r') as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+
+def _save_geocache(cache: Dict[str, Optional[str]]) -> None:
+    try:
+        GEOCACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(GEOCACHE_FILE, 'w') as f:
+            json.dump(cache, f, indent=2)
+    except Exception:
+        pass
+
+
+def _nominatim_reverse(lat: float, lng: float) -> Optional[str]:
+    """Reverse-geocode via OpenStreetMap Nominatim (free, no API key)."""
+    try:
+        url = (
+            f"https://nominatim.openstreetmap.org/reverse?"
+            f"format=json&lat={lat}&lon={lng}&zoom=10&accept-language=en"
+        )
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'HAScreensaver/1.1'
+        })
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+
+        addr = data.get('address', {})
+        city = (addr.get('city') or addr.get('town') or
+                addr.get('village') or addr.get('hamlet') or
+                addr.get('municipality') or '')
+        country = addr.get('country', '')
+
+        if city and country:
+            return f"{city}, {country}"
+        return city or country or None
+    except Exception as e:
+        logger.warning(f"Reverse geocoding failed for {lat},{lng}: {e}")
+        return None
+
+
+def _format_coords(lat: float, lng: float) -> str:
+    """Fallback: format coordinates as a human-readable string."""
+    lat_dir = 'N' if lat >= 0 else 'S'
+    lng_dir = 'E' if lng >= 0 else 'W'
+    return f"{abs(lat):.1f}\u00b0{lat_dir}, {abs(lng):.1f}\u00b0{lng_dir}"
+
+
+# -----------------------------------------------------------------
+
 def get_image_files(folder_path: str) -> List[Dict[str, Any]]:
     """
     Scan a folder for image files and return their URLs with EXIF metadata.
-
-    Returns:
-        list: List of dicts with 'url' and 'exif' keys
+    GPS coordinates are reverse-geocoded to city/country names (cached to disk).
     """
     image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
 
@@ -174,6 +232,28 @@ def get_image_files(folder_path: str) -> List[Dict[str, Any]]:
                     photo_url = f"/photos/{file_path.name}"
                     exif = extract_exif(str(file_path))
                     photos.append({"url": photo_url, "exif": exif})
+
+        # Batch reverse-geocode any new GPS coordinates
+        geocache = _load_geocache()
+        needs_save = False
+
+        for photo in photos:
+            exif = photo.get('exif', {})
+            lat, lng = exif.pop('lat', None), exif.pop('lng', None)
+            if lat is None or lng is None:
+                continue
+
+            cache_key = f"{lat:.2f},{lng:.2f}"
+            if cache_key not in geocache:
+                geocache[cache_key] = _nominatim_reverse(lat, lng)
+                needs_save = True
+                time.sleep(1)  # Nominatim rate limit: 1 req/s
+
+            location = geocache.get(cache_key)
+            exif['location'] = location if location else _format_coords(lat, lng)
+
+        if needs_save:
+            _save_geocache(geocache)
 
         logger.info(f"Found {len(photos)} photos in {folder_path}")
         return sorted(photos, key=lambda p: p["url"])

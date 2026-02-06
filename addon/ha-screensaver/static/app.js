@@ -398,10 +398,13 @@ class ScreensaverApp {
         };
 
         const icon = icons[this.weather.condition] || '';
-        const temp = this.weather.temperature;
-        const unit = this.weather.temperature_unit || '\u00b0C';
+        let temp = this.weather.temperature;
         if (temp !== null && temp !== undefined) {
-            el.textContent = `${icon} ${Math.round(temp)}${unit}`;
+            // Always display in Celsius
+            if (this.weather.temperature_unit === '\u00b0F' || this.weather.temperature_unit === '°F') {
+                temp = (temp - 32) * 5 / 9;
+            }
+            el.textContent = `${icon} ${Math.round(temp)}\u00b0C`;
         }
     }
 
