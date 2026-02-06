@@ -3,6 +3,7 @@ class ScreensaverApp {
         this.config = null;
         this.photos = [];
         this.currentSlideIndex = 0;
+        this.slideHistory = [];
         this.idleTimer = null;
         this.slideInterval = null;
         this.clockInterval = null;
@@ -56,42 +57,62 @@ class ScreensaverApp {
     }
 
     setupEventListeners() {
-        // Activity detection to exit slideshow
-        const activityEvents = ['mousedown', 'touchstart', 'click'];
-        activityEvents.forEach(event => {
-            document.getElementById('slideshow').addEventListener(event, (e) => {
-                if (this.isScreensaverActive) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    this.stopScreensaver();
-                }
-            });
+        const slideshow = document.getElementById('slideshow');
+
+        const handleSlideshowInteraction = (e) => {
+            if (!this.isScreensaverActive) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            const x = e.touches ? e.touches[0].clientX : e.clientX;
+
+            if (x < window.innerWidth * 0.1) {
+                // Left 10% of screen - go back one image
+                this.previousSlide();
+                this.resetSlideTimer();
+            } else {
+                this.stopScreensaver();
+            }
+        };
+
+        ['mousedown', 'touchstart'].forEach(event => {
+            slideshow.addEventListener(event, handleSlideshowInteraction);
         });
     }
 
     setupIdleDetection() {
-        const resetIdleTimer = () => {
-            // Don't reset timer if screensaver is active
-            if (this.isScreensaverActive) return;
-            
-            clearTimeout(this.idleTimer);
-            this.idleTimer = setTimeout(() => {
-                this.startScreensaver();
-            }, this.config.idle_timeout_seconds * 1000);
-        };
+        // Only attach listeners once to avoid duplicates on repeated calls
+        if (!this._idleListenersAttached) {
+            this._idleListenersAttached = true;
 
-        // Events that indicate user activity
-        const activityEvents = [
-            'mousedown', 'mousemove', 'keypress', 
-            'scroll', 'touchstart', 'click'
-        ];
+            const resetIdleTimer = () => {
+                if (this.isScreensaverActive) return;
+                clearTimeout(this.idleTimer);
+                this.idleTimer = setTimeout(() => {
+                    this.startScreensaver();
+                }, this.config.idle_timeout_seconds * 1000);
+            };
 
-        activityEvents.forEach(event => {
-            document.addEventListener(event, resetIdleTimer, true);
-        });
+            const activityEvents = [
+                'mousedown', 'mousemove', 'keypress',
+                'scroll', 'touchstart', 'click'
+            ];
 
-        // Start the initial timer
-        resetIdleTimer();
+            activityEvents.forEach(event => {
+                document.addEventListener(event, resetIdleTimer, true);
+            });
+
+            // Detect interaction within the HA iframe -- clicking inside the
+            // iframe causes the parent window to lose focus
+            window.addEventListener('blur', resetIdleTimer);
+            window.addEventListener('focus', resetIdleTimer);
+        }
+
+        // Start/restart the idle timer
+        clearTimeout(this.idleTimer);
+        this.idleTimer = setTimeout(() => {
+            this.startScreensaver();
+        }, this.config.idle_timeout_seconds * 1000);
     }
 
     startScreensaver() {
@@ -112,21 +133,25 @@ class ScreensaverApp {
             slideshow.appendChild(clockElement);
         }
         
+        // Pick a random starting slide
+        const startIndex = Math.floor(Math.random() * this.photos.length);
+
         // Create slides
         this.photos.forEach((photo, index) => {
             const slide = document.createElement('div');
             slide.className = 'slide';
-            if (index === 0) slide.classList.add('active');
-            
+            if (index === startIndex) slide.classList.add('active');
+
             const img = document.createElement('img');
             img.src = photo;
             img.alt = `Photo ${index + 1}`;
-            
+
             slide.appendChild(img);
             slideshow.appendChild(slide);
         });
 
-        this.currentSlideIndex = 0;
+        this.currentSlideIndex = startIndex;
+        this.slideHistory = [];
         
         // Start the clock
         this.startClock();
@@ -141,8 +166,9 @@ class ScreensaverApp {
         const slides = document.querySelectorAll('.slide');
         if (slides.length === 0) return;
 
+        this.slideHistory.push(this.currentSlideIndex);
         slides[this.currentSlideIndex].classList.remove('active');
-        
+
         // Pick a random slide that's different from the current one
         let nextIndex;
         if (slides.length > 1) {
@@ -158,6 +184,24 @@ class ScreensaverApp {
         
         // Update clock color based on new image
         this.updateClockColor(slides[this.currentSlideIndex]);
+    }
+
+    previousSlide() {
+        const slides = document.querySelectorAll('.slide');
+        if (slides.length === 0 || this.slideHistory.length === 0) return;
+
+        slides[this.currentSlideIndex].classList.remove('active');
+        this.currentSlideIndex = this.slideHistory.pop();
+        slides[this.currentSlideIndex].classList.add('active');
+
+        this.updateClockColor(slides[this.currentSlideIndex]);
+    }
+
+    resetSlideTimer() {
+        clearInterval(this.slideInterval);
+        this.slideInterval = setInterval(() => {
+            this.nextSlide();
+        }, this.config.slide_interval_seconds * 1000);
     }
 
     startClock() {
