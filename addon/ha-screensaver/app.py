@@ -84,40 +84,6 @@ def load_config() -> Dict[str, Any]:
         return DEFAULT_CONFIG.copy()
 
 
-def save_config(config: Dict[str, Any]) -> bool:
-    """
-    Save configuration to JSON file.
-    
-    Args:
-        config: Configuration dictionary to save
-    
-    Returns:
-        bool: True if successful, False otherwise
-    
-    Elixir equivalent:
-        def save_config(config) do
-          json = Jason.encode!(config, pretty: true)
-          case File.write(config_path, json) do
-            :ok -> {:ok, config}
-            {:error, reason} -> {:error, reason}
-          end
-        end
-    """
-    try:
-        # Ensure parent directory exists
-        # Elixir: File.mkdir_p!(Path.dirname(config_path))
-        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(CONFIG_FILE, 'w') as f:
-            # indent=2 makes the JSON human-readable (pretty printing)
-            # Elixir: Jason.encode!(config, pretty: true)
-            json.dump(config, f, indent=2)
-        return True
-    except IOError as e:
-        logger.error(f"Failed to save config: {e}")
-        return False
-
-
 def get_image_files(folder_path: str) -> List[str]:
     """
     Scan a folder for image files and return their URLs.
@@ -214,78 +180,6 @@ def get_config():
     # jsonify converts dict to JSON and sets Content-Type header
     # Elixir: json(conn, config) or render(conn, "config.json", config: config)
     return jsonify(config)
-
-
-@app.route('/api/config', methods=['POST'])
-def update_config():
-    """
-    POST /api/config - Update configuration
-    
-    Request body: JSON with config fields to update
-    
-    Elixir equivalent:
-        def update(conn, params) do
-          with {:ok, config} <- validate_config(params),
-               :ok <- save_config(config) do
-            json(conn, config)
-          else
-            {:error, reason} -> 
-              conn
-              |> put_status(:bad_request)
-              |> json(%{error: reason})
-          end
-        end
-    
-    BUG FIX #3: Adding validation to prevent invalid config values
-    """
-    try:
-        # Get JSON data from request body
-        # Elixir: conn.params or conn.body_params
-        new_config = request.get_json()
-        
-        if not new_config:
-            # BUG FIX #4: Handle missing request body
-            return jsonify({"error": "No data provided"}), 400
-        
-        # Load current config and merge with updates
-        # Elixir: Map.merge(current_config, new_config)
-        current_config = load_config()
-        updated_config = {**current_config, **new_config}
-        
-        # Validation: Ensure idle_timeout is positive
-        # BUG FIX #5: Validate timeout range
-        timeout = updated_config.get('idle_timeout_seconds', 60)
-        if not isinstance(timeout, int) or timeout < 1 or timeout > 3600:
-            return jsonify({
-                "error": "idle_timeout_seconds must be between 1 and 3600"
-            }), 400
-        
-        # Validation: Ensure slide_interval is positive
-        slide_interval = updated_config.get('slide_interval_seconds', 5)
-        if not isinstance(slide_interval, int) or slide_interval < 1 or slide_interval > 60:
-            return jsonify({
-                "error": "slide_interval_seconds must be between 1 and 60"
-            }), 400
-        
-        # Validation: Ensure photos_folder is a string
-        photos_folder = updated_config.get('photos_folder', '/media')
-        if not isinstance(photos_folder, str) or not photos_folder.strip():
-            return jsonify({
-                "error": "photos_folder must be a non-empty string"
-            }), 400
-        
-        # Save to file
-        if save_config(updated_config):
-            logger.info(f"Configuration updated: {updated_config}")
-            return jsonify(updated_config)
-        else:
-            # Return 500 Internal Server Error if save fails
-            # Elixir: {:error, reason} -> put_status(conn, 500)
-            return jsonify({"error": "Failed to save configuration"}), 500
-            
-    except Exception as e:
-        logger.error(f"Error updating config: {e}")
-        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/photos', methods=['GET'])

@@ -48,30 +48,6 @@ class ScreensaverApp {
     }
 
     setupEventListeners() {
-        const settingsButton = document.getElementById('settings-button');
-        const settingsModal = document.getElementById('settings-modal');
-        const saveButton = document.getElementById('save-settings');
-        const cancelButton = document.getElementById('cancel-settings');
-
-        settingsButton.addEventListener('click', () => {
-            this.openSettings();
-        });
-
-        saveButton.addEventListener('click', () => {
-            this.saveSettings();
-        });
-
-        cancelButton.addEventListener('click', () => {
-            settingsModal.classList.remove('active');
-        });
-
-        // Click on modal background to close
-        settingsModal.addEventListener('click', (e) => {
-            if (e.target === settingsModal) {
-                settingsModal.classList.remove('active');
-            }
-        });
-
         // Activity detection to exit slideshow
         const activityEvents = ['mousedown', 'touchstart', 'click'];
         activityEvents.forEach(event => {
@@ -120,10 +96,6 @@ class ScreensaverApp {
         this.isScreensaverActive = true;
         const slideshow = document.getElementById('slideshow');
         slideshow.classList.add('active');
-        
-        // Hide settings button when slideshow is active
-        const settingsButton = document.getElementById('settings-button');
-        settingsButton.style.display = 'none';
         
         // Clear any existing slides
         slideshow.innerHTML = '';
@@ -177,10 +149,6 @@ class ScreensaverApp {
         const slideshow = document.getElementById('slideshow');
         slideshow.classList.remove('active');
         
-        // Show settings button when slideshow stops
-        const settingsButton = document.getElementById('settings-button');
-        settingsButton.style.display = 'block';
-        
         clearInterval(this.slideInterval);
         this.slideInterval = null;
         
@@ -188,63 +156,6 @@ class ScreensaverApp {
         this.setupIdleDetection();
     }
 
-    openSettings() {
-        const modal = document.getElementById('settings-modal');
-        const haUrl = document.getElementById('ha-url');
-        const idleTimeout = document.getElementById('idle-timeout');
-        const photosFolder = document.getElementById('photos-folder');
-
-        haUrl.value = this.config.home_assistant_url;
-        idleTimeout.value = this.config.idle_timeout_seconds;
-        photosFolder.value = this.config.photos_folder;
-
-        modal.classList.add('active');
-    }
-
-    async saveSettings() {
-        const haUrl = document.getElementById('ha-url').value;
-        const idleTimeout = parseInt(document.getElementById('idle-timeout').value);
-        const photosFolder = document.getElementById('photos-folder').value;
-
-        const newConfig = {
-            home_assistant_url: haUrl,
-            photos_folder: photosFolder,
-            idle_timeout_seconds: idleTimeout
-        };
-
-        try {
-            const response = await fetch('/api/config', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(newConfig)
-            });
-
-            if (response.ok) {
-                this.config = await response.json();
-                
-                // Reload iframe to apply new config
-                const iframe = document.getElementById('ha-iframe');
-                iframe.src = this.config.home_assistant_url;
-                
-                // Reload photos
-                await this.loadPhotos();
-                
-                // Close modal
-                document.getElementById('settings-modal').classList.remove('active');
-                
-                // Restart idle detection with new timeout
-                this.setupIdleDetection();
-                
-                console.log('Settings saved successfully');
-            } else {
-                console.error('Error saving settings');
-            }
-        } catch (error) {
-            console.error('Error saving settings:', error);
-        }
-    }
 }
 
 // Initialize the app when DOM is ready

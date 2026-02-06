@@ -6,12 +6,14 @@
 # Get configuration from Home Assistant add-on options
 # Elixir equivalent: Application.get_env(:ha_screensaver, :idle_timeout_seconds)
 IDLE_TIMEOUT=$(bashio::config 'idle_timeout_seconds')
+SLIDE_INTERVAL=$(bashio::config 'slide_interval_seconds')
 PHOTOS_SOURCE=$(bashio::config 'photos_source')
 
 # Log startup information
 # Elixir: Logger.info("Starting Home Assistant Screensaver...")
 bashio::log.info "Starting Home Assistant Screensaver..."
 bashio::log.info "Idle timeout: ${IDLE_TIMEOUT} seconds"
+bashio::log.info "Slide interval: ${SLIDE_INTERVAL} seconds"
 bashio::log.info "Photos source: ${PHOTOS_SOURCE}"
 
 # Determine photos folder based on configuration
@@ -46,7 +48,8 @@ cat > /app/config.json <<EOF
 {
   "home_assistant_url": "http://homeassistant.local:8123",
   "photos_folder": "${PHOTOS_FOLDER}",
-  "idle_timeout_seconds": ${IDLE_TIMEOUT}
+  "idle_timeout_seconds": ${IDLE_TIMEOUT},
+  "slide_interval_seconds": ${SLIDE_INTERVAL}
 }
 EOF
 
