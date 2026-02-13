@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.2.0 (2026-02-13)
+
+### Major Features
+- **Google Photos Integration** - Added support for using photos from Google Photos as an alternative to local storage
+  - OAuth 2.0 authentication with Google Photos Picker API
+  - Interactive photo picker UI for selecting photos from your Google Photos library
+  - Automatic photo caching and refresh functionality
+  - Metadata display showing date taken from Google Photos (location not available due to privacy)
+  - New configuration options: `google_photos_enabled`, `google_photos_client_id`, `google_photos_client_secret`, `google_photos_refresh_interval`
+  - New `photos_source` option: `google_photos`
+
+### Improvements
+- Enhanced photo source configuration with `google_photos` option
+- Added visual Google Photos management button in web UI
+- Modal interface for Google Photos authentication and photo selection
+- Automatic session polling and photo fetching
+- Image proxy endpoint for secure Google Photos image delivery
+
+### Technical Changes
+- Added dependencies: `google-auth`, `google-auth-oauthlib`, `requests`
+- New API endpoints for Google Photos integration:
+  - `/api/google-photos/status` - Check authentication status
+  - `/api/google-photos/auth-url` - Get OAuth authorization URL
+  - `/api/google-photos/callback` - Handle OAuth callback
+  - `/api/google-photos/create-session` - Create picker session
+  - `/api/google-photos/poll-session/<id>` - Poll session status
+  - `/api/google-photos/fetch-photos/<id>` - Fetch selected photos
+  - `/api/google-photos/proxy-image` - Proxy Google Photos images
+- Enhanced configuration system to support both local and Google Photos sources
+
 ## 1.1.0 (2026-01-03)
 
 ### Features
