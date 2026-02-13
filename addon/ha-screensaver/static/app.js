@@ -19,6 +19,7 @@ class ScreensaverApp {
     await this.loadPhotos();
     this.setupEventListeners();
     this.setupIdleDetection();
+    this.setupGooglePhotos();
 
     // Set the iframe source to Home Assistant URL
     const iframe = document.getElementById('ha-iframe');
@@ -425,9 +426,248 @@ class ScreensaverApp {
     this.setupIdleDetection();
   }
 
+  // ========== Google Photos Integration ==========
+
+  async setupGooglePhotos() {
+    // Check if Google Photos is enabled
+    if (!this.config.google_photos_enabled && this.config.photos_source !== 'google_photos') {
+      return;
+    }
+
+    // Show the Google Photos button
+    const button = document.getElementById('google-photos-button');
+    button.classList.add('visible');
+
+    // Setup button click handler
+    button.addEventListener('click', () => {
+      this.showGooglePhotosModal();
+    });
+
+    // Check authentication status
+    await this.checkGooglePhotosStatus();
+  }
+
+  async checkGooglePhotosStatus() {
+    try {
+      const response = await fetch('api/google-photos/status');
+      const status = await response.json();
+
+      if (status.authenticated && status.photos_count > 0) {
+        // Update button to show photo count
+        const button = document.getElementById('google-photos-button');
+        button.textContent = `Google Photos (${status.photos_count})`;
+      }
+    } catch (error) {
+      console.error('Error checking Google Photos status:', error);
+    }
+  }
+
+  showGooglePhotosModal() {
+    const modal = document.getElementById('google-photos-modal');
+    modal.classList.add('active');
+
+    // Load current status
+    this.updateGooglePhotosModalContent();
+
+    // Setup close on background click
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        this.closeGooglePhotosModal();
+      }
+    });
+  }
+
+  closeGooglePhotosModal() {
+    const modal = document.getElementById('google-photos-modal');
+    modal.classList.remove('active');
+  }
+
+  async updateGooglePhotosModalContent() {
+    const statusEl = document.getElementById('modal-status');
+    const actionsEl = document.getElementById('modal-actions');
+
+    // Show loading
+    statusEl.innerHTML = '<div class="spinner"></div>';
+    actionsEl.innerHTML = '';
+
+    try {
+      const response = await fetch('api/google-photos/status');
+      const status = await response.json();
+
+      if (status.error) {
+        statusEl.innerHTML = `<div class="status-message error">${status.error}</div>`;
+        actionsEl.innerHTML = '<button class="modal-button secondary" onclick="app.closeGooglePhotosModal()">Close</button>';
+        return;
+      }
+
+      if (!status.authenticated) {
+        // Not authenticated - show auth button
+        statusEl.innerHTML = '<div class="status-message info">Connect your Google Photos account to use photos from your library.</div>';
+        actionsEl.innerHTML = `
+          <button class="modal-button primary" onclick="app.startGoogleAuth()">Connect Google Photos</button>
+          <button class="modal-button secondary" onclick="app.closeGooglePhotosModal()">Cancel</button>
+        `;
+      } else if (status.photos_count === 0) {
+        // Authenticated but no photos selected
+        statusEl.innerHTML = '<div class="status-message info">Connected! Now select photos from your Google Photos library.</div>';
+        actionsEl.innerHTML = `
+          <button class="modal-button primary" onclick="app.openGooglePhotosPicker()">Select Photos</button>
+          <button class="modal-button secondary" onclick="app.closeGooglePhotosModal()">Cancel</button>
+        `;
+      } else {
+        // Has photos - show count and refresh option
+        const lastUpdated = status.last_updated ? new Date(status.last_updated * 1000).toLocaleString() : 'Unknown';
+        statusEl.innerHTML = `
+          <div class="status-message success">
+            ${status.photos_count} photos selected<br>
+            <small>Last updated: ${lastUpdated}</small>
+          </div>
+        `;
+        actionsEl.innerHTML = `
+          <button class="modal-button primary" onclick="app.openGooglePhotosPicker()">Update Selection</button>
+          <button class="modal-button secondary" onclick="app.closeGooglePhotosModal()">Close</button>
+        `;
+      }
+    } catch (error) {
+      statusEl.innerHTML = `<div class="status-message error">Error: ${error.message}</div>`;
+      actionsEl.innerHTML = '<button class="modal-button secondary" onclick="app.closeGooglePhotosModal()">Close</button>';
+    }
+  }
+
+  async startGoogleAuth() {
+    const statusEl = document.getElementById('modal-status');
+    const actionsEl = document.getElementById('modal-actions');
+
+    statusEl.innerHTML = '<div class="spinner"></div><p style="text-align: center;">Opening Google authentication...</p>';
+    actionsEl.innerHTML = '';
+
+    try {
+      const response = await fetch('api/google-photos/auth-url');
+      const data = await response.json();
+
+      if (data.error) {
+        statusEl.innerHTML = `<div class="status-message error">${data.error}</div>`;
+        actionsEl.innerHTML = '<button class="modal-button secondary" onclick="app.closeGooglePhotosModal()">Close</button>';
+        return;
+      }
+
+      // Open auth URL in new window
+      const authWindow = window.open(data.authorization_url, 'Google Photos Auth', 'width=600,height=700');
+
+      statusEl.innerHTML = '<div class="status-message info">Please complete authentication in the popup window.</div>';
+      actionsEl.innerHTML = '<button class="modal-button secondary" onclick="app.closeGooglePhotosModal()">Cancel</button>';
+
+      // Poll for auth completion
+      const checkAuth = setInterval(async () => {
+        if (authWindow.closed) {
+          clearInterval(checkAuth);
+          // Recheck status
+          await this.updateGooglePhotosModalContent();
+          await this.checkGooglePhotosStatus();
+        }
+      }, 1000);
+    } catch (error) {
+      statusEl.innerHTML = `<div class="status-message error">Error: ${error.message}</div>`;
+      actionsEl.innerHTML = '<button class="modal-button secondary" onclick="app.closeGooglePhotosModal()">Close</button>';
+    }
+  }
+
+  async openGooglePhotosPicker() {
+    const statusEl = document.getElementById('modal-status');
+    const actionsEl = document.getElementById('modal-actions');
+
+    statusEl.innerHTML = '<div class="spinner"></div><p style="text-align: center;">Creating picker session...</p>';
+    actionsEl.innerHTML = '';
+
+    try {
+      // Create picker session
+      const response = await fetch('api/google-photos/create-session', { method: 'POST' });
+      const sessionData = await response.json();
+
+      if (sessionData.error) {
+        statusEl.innerHTML = `<div class="status-message error">${sessionData.error}</div>`;
+        actionsEl.innerHTML = '<button class="modal-button secondary" onclick="app.closeGooglePhotosModal()">Close</button>';
+        return;
+      }
+
+      const sessionId = sessionData.id;
+      const pickerUri = sessionData.pickerUri;
+
+      // Open picker in new window
+      const pickerWindow = window.open(pickerUri, 'Google Photos Picker', 'width=800,height=900');
+
+      statusEl.innerHTML = '<div class="status-message info">Select photos in the Google Photos picker window, then click Done.</div>';
+      actionsEl.innerHTML = '<button class="modal-button secondary" onclick="app.closeGooglePhotosModal()">Cancel</button>';
+
+      // Poll for session completion
+      this.pollPickerSession(sessionId, pickerWindow);
+    } catch (error) {
+      statusEl.innerHTML = `<div class="status-message error">Error: ${error.message}</div>`;
+      actionsEl.innerHTML = '<button class="modal-button secondary" onclick="app.closeGooglePhotosModal()">Close</button>';
+    }
+  }
+
+  async pollPickerSession(sessionId, pickerWindow) {
+    const statusEl = document.getElementById('modal-status');
+    const actionsEl = document.getElementById('modal-actions');
+
+    const pollInterval = setInterval(async () => {
+      try {
+        // Check if window is closed
+        if (pickerWindow.closed) {
+          statusEl.innerHTML = '<div class="status-message info">Checking for selected photos...</div>';
+        }
+
+        // Poll session status
+        const response = await fetch(`api/google-photos/poll-session/${sessionId}`);
+        const sessionData = await response.json();
+
+        if (sessionData.error) {
+          clearInterval(pollInterval);
+          statusEl.innerHTML = `<div class="status-message error">${sessionData.error}</div>`;
+          actionsEl.innerHTML = '<button class="modal-button secondary" onclick="app.closeGooglePhotosModal()">Close</button>';
+          return;
+        }
+
+        // Check if photos have been selected
+        if (sessionData.mediaItemsSet) {
+          clearInterval(pollInterval);
+          if (pickerWindow && !pickerWindow.closed) {
+            pickerWindow.close();
+          }
+
+          // Fetch the selected photos
+          statusEl.innerHTML = '<div class="spinner"></div><p style="text-align: center;">Fetching selected photos...</p>';
+
+          const fetchResponse = await fetch(`api/google-photos/fetch-photos/${sessionId}`, { method: 'POST' });
+          const fetchData = await fetchResponse.json();
+
+          if (fetchData.error) {
+            statusEl.innerHTML = `<div class="status-message error">${fetchData.error}</div>`;
+            actionsEl.innerHTML = '<button class="modal-button secondary" onclick="app.closeGooglePhotosModal()">Close</button>';
+            return;
+          }
+
+          // Success!
+          statusEl.innerHTML = `<div class="status-message success">Successfully selected ${fetchData.count} photos!</div>`;
+          actionsEl.innerHTML = '<button class="modal-button primary" onclick="app.closeGooglePhotosModal()">Done</button>';
+
+          // Reload photos
+          await this.loadPhotos();
+          await this.checkGooglePhotosStatus();
+        }
+      } catch (error) {
+        clearInterval(pollInterval);
+        statusEl.innerHTML = `<div class="status-message error">Error: ${error.message}</div>`;
+        actionsEl.innerHTML = '<button class="modal-button secondary" onclick="app.closeGooglePhotosModal()">Close</button>';
+      }
+    }, 2000); // Poll every 2 seconds
+  }
+
 }
 
 // Initialize the app when DOM is ready
+let app;
 document.addEventListener('DOMContentLoaded', () => {
-  new ScreensaverApp();
+  app = new ScreensaverApp();
 });
