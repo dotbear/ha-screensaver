@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.2 (2026-02-14)
+
+### Bug Fixes
+- **Google Photos OAuth Fix** - Added direct port access (8080) to enable Google OAuth authentication
+  - Google OAuth requires direct URL access and doesn't work through Home Assistant's ingress (iframe)
+  - Add-on now exposes port 8080 for direct access from local network
+  - Updated documentation with clear instructions for OAuth setup and troubleshooting
+  - Users can now access the app at `http://HA_IP:8080` for OAuth authentication
+
 ## 1.2.1 (2026-02-14)
 
 ### Bug Fixes
