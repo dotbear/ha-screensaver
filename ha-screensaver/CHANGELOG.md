@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.0 (2026-02-14)
+
+### Breaking Changes
+- **Removed Google Photos Integration** - Google Photos Picker API is not compatible with this application's use case
+  - Removed all Google Photos related code and dependencies
+  - Removed configuration options: `google_photos_enabled`, `google_photos_client_id`, `google_photos_client_secret`, `google_photos_refresh_interval`
+  - Removed `google_photos` option from `photos_source` configuration
+  - Removed port 8080 exposure (now only accessible via Home Assistant ingress)
+  - App is now local-only for photo storage (media, share, or addon folders)
+
+### Improvements
+- Simplified codebase by removing unused Google Photos integration
+- Reduced dependencies (removed google-auth, google-auth-oauthlib, requests)
+- Cleaner configuration with fewer options
+
 ## 1.2.3 (2026-02-14)
 
 ### Bug Fixes
