@@ -443,6 +443,23 @@ class ScreensaverApp {
       this.showGooglePhotosModal();
     });
 
+    // Check if returning from OAuth
+    const oauthInProgress = sessionStorage.getItem('oauth_in_progress');
+    const returnAction = sessionStorage.getItem('oauth_return_action');
+
+    if (oauthInProgress === 'true') {
+      // Clear the flags
+      sessionStorage.removeItem('oauth_in_progress');
+      sessionStorage.removeItem('oauth_return_action');
+
+      // Show the modal after a brief delay to let the page load
+      if (returnAction === 'show_modal') {
+        setTimeout(() => {
+          this.showGooglePhotosModal();
+        }, 500);
+      }
+    }
+
     // Check authentication status
     await this.checkGooglePhotosStatus();
   }
@@ -551,21 +568,49 @@ class ScreensaverApp {
         return;
       }
 
-      // Open auth URL in new window
-      const authWindow = window.open(data.authorization_url, 'Google Photos Auth', 'width=600,height=700');
+      // Detect if mobile device
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-      statusEl.innerHTML = '<div class="status-message info">Please complete authentication in the popup window.</div>';
-      actionsEl.innerHTML = '<button class="modal-button secondary" onclick="app.closeGooglePhotosModal()">Cancel</button>';
+      if (isMobile) {
+        // Mobile: use full-page redirect
+        statusEl.innerHTML = '<div class="status-message info">Redirecting to Google for authentication...</div>';
 
-      // Poll for auth completion
-      const checkAuth = setInterval(async () => {
-        if (authWindow.closed) {
-          clearInterval(checkAuth);
-          // Recheck status
-          await this.updateGooglePhotosModalContent();
-          await this.checkGooglePhotosStatus();
+        // Store that we're in OAuth flow
+        sessionStorage.setItem('oauth_in_progress', 'true');
+        sessionStorage.setItem('oauth_return_action', 'show_modal');
+
+        // Redirect to Google OAuth
+        setTimeout(() => {
+          window.location.href = data.authorization_url;
+        }, 1000);
+      } else {
+        // Desktop: use popup window
+        const authWindow = window.open(data.authorization_url, 'Google Photos Auth', 'width=600,height=700');
+
+        if (!authWindow) {
+          // Popup blocked - fall back to redirect
+          statusEl.innerHTML = '<div class="status-message warning">Popup blocked. Redirecting to Google...</div>';
+          sessionStorage.setItem('oauth_in_progress', 'true');
+          sessionStorage.setItem('oauth_return_action', 'show_modal');
+          setTimeout(() => {
+            window.location.href = data.authorization_url;
+          }, 1500);
+          return;
         }
-      }, 1000);
+
+        statusEl.innerHTML = '<div class="status-message info">Please complete authentication in the popup window.</div>';
+        actionsEl.innerHTML = '<button class="modal-button secondary" onclick="app.closeGooglePhotosModal()">Cancel</button>';
+
+        // Poll for auth completion
+        const checkAuth = setInterval(async () => {
+          if (authWindow.closed) {
+            clearInterval(checkAuth);
+            // Recheck status
+            await this.updateGooglePhotosModalContent();
+            await this.checkGooglePhotosStatus();
+          }
+        }, 1000);
+      }
     } catch (error) {
       statusEl.innerHTML = `<div class="status-message error">Error: ${error.message}</div>`;
       actionsEl.innerHTML = '<button class="modal-button secondary" onclick="app.closeGooglePhotosModal()">Close</button>';

@@ -597,16 +597,102 @@ def google_photos_callback():
         logger.info("Google Photos authentication successful")
         return """
         <html>
+        <head>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    margin: 0;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                }
+                .container {
+                    text-align: center;
+                    background: rgba(255, 255, 255, 0.1);
+                    padding: 2rem;
+                    border-radius: 10px;
+                    backdrop-filter: blur(10px);
+                }
+                .checkmark {
+                    font-size: 64px;
+                    margin-bottom: 1rem;
+                }
+            </style>
+        </head>
         <body>
-            <h2>Authentication Successful!</h2>
-            <p>You can close this window and return to the screensaver.</p>
-            <script>window.close();</script>
+            <div class="container">
+                <div class="checkmark">✓</div>
+                <h2>Authentication Successful!</h2>
+                <p id="message">Redirecting back to app...</p>
+            </div>
+            <script>
+                // Try to close the window (works for popups)
+                const canClose = window.opener !== null;
+                if (canClose) {
+                    document.getElementById('message').textContent = 'You can close this window.';
+                    window.close();
+                } else {
+                    // Full page redirect (mobile)
+                    document.getElementById('message').textContent = 'Redirecting...';
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1500);
+                }
+            </script>
         </body>
         </html>
         """
     except Exception as e:
         logger.error(f"OAuth callback failed: {e}")
-        return f"Authentication failed: {str(e)}", 400
+        return f"""
+        <html>
+        <head>
+            <style>
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    margin: 0;
+                    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                    color: white;
+                }}
+                .container {{
+                    text-align: center;
+                    background: rgba(255, 255, 255, 0.1);
+                    padding: 2rem;
+                    border-radius: 10px;
+                    backdrop-filter: blur(10px);
+                }}
+                .error-icon {{
+                    font-size: 64px;
+                    margin-bottom: 1rem;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="error-icon">✗</div>
+                <h2>Authentication Failed</h2>
+                <p>{str(e)}</p>
+                <p id="message">Redirecting back...</p>
+            </div>
+            <script>
+                const canClose = window.opener !== null;
+                if (canClose) {{
+                    document.getElementById('message').textContent = 'You can close this window.';
+                    setTimeout(() => window.close(), 3000);
+                }} else {{
+                    setTimeout(() => window.location.href = '/', 3000);
+                }}
+            </script>
+        </body>
+        </html>
+        """, 400
 
 
 @app.route('/api/google-photos/create-session', methods=['POST'])
