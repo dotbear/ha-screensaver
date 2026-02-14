@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.1 (2026-02-14)
+
+### Bug Fixes
+- Fixed startup crash when Google Photos is enabled - the add-on no longer tries to create an empty photos directory when `photos_source` is set to `google_photos`
+
 ## 1.2.0 (2026-02-13)
 
 ### Major Features
