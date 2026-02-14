@@ -8,8 +8,3 @@ flask-cors==4.0.0
 
 # Gunicorn - Production WSGI server
 gunicorn==21.2.0
-
-# Google OAuth and API - For Google Photos integration
-google-auth==2.29.0
-google-auth-oauthlib==1.2.0
-requests==2.31.0
