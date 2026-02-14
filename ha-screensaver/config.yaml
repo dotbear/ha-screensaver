@@ -1,5 +1,5 @@
 name: Home Assistant Screensaver
-version: "1.2.2"
+version: "1.2.3"
 slug: ha-screensaver
 description: Photo slideshow screensaver for Home Assistant with idle detection
 arch:
