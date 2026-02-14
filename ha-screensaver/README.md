@@ -155,8 +155,10 @@ To use photos from your Google Photos library:
    - Add your email as developer contact
    - Scopes: Add `https://www.googleapis.com/auth/photospicker.mediaitems.readonly`
 4. Application type: "Web application"
-5. Authorized redirect URIs: Add `http://YOUR_HA_URL:8080/api/google-photos/callback`
-   - Example: `http://homeassistant.local:8080/api/google-photos/callback`
+5. Authorized redirect URIs: Add `http://YOUR_HA_IP:8080/api/google-photos/callback`
+   - **IMPORTANT:** Use your Home Assistant's IP address or hostname with port 8080 (e.g., `http://192.168.1.100:8080/api/google-photos/callback` or `http://homeassistant.local:8080/api/google-photos/callback`)
+   - **DO NOT** use the Home Assistant ingress URL (the one with `/api/hassio_ingress/...`) - Google OAuth will not work through iframes
+   - To find your HA IP: Settings → System → Network
 6. Click "Create" and save your Client ID and Client Secret
 
 ### 3. Configure the Add-on
@@ -172,9 +174,11 @@ To use photos from your Google Photos library:
 
 ### 4. Authenticate and Select Photos
 
-1. Access the screensaver web UI
+**IMPORTANT:** You must access the app directly at `http://YOUR_HA_IP:8080` (not through the HA ingress interface) for Google OAuth to work properly.
+
+1. Access the screensaver web UI at `http://YOUR_HA_IP:8080` (e.g., `http://192.168.1.100:8080`)
 2. Click the "Google Photos" button in the bottom-right corner
-3. Click "Connect Google Photos" and sign in
+3. Click "Connect Google Photos" and sign in with your Google account
 4. Click "Select Photos" to open the Google Photos picker
 5. Select the photos you want to use in the slideshow
 6. Click "Done" in the picker

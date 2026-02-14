@@ -1,5 +1,5 @@
 name: Home Assistant Screensaver
-version: "1.2.1"
+version: "1.2.2"
 slug: ha-screensaver
 description: Photo slideshow screensaver for Home Assistant with idle detection
 arch:
@@ -8,6 +8,10 @@ arch:
   - armv7
 init: false
 homeassistant_api: true
+ports:
+  8080/tcp: 8080
+ports_description:
+  8080/tcp: Web interface (required for Google Photos OAuth)
 ingress: true
 ingress_port: 8080
 panel_icon: mdi:camera-timer
