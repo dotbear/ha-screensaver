@@ -38,8 +38,10 @@ esac
 
 bashio::log.info "Photos folder: ${PHOTOS_FOLDER}"
 
-# Create the photos folder if it doesn't exist
-mkdir -p "${PHOTOS_FOLDER}"
+# Create the photos folder if it doesn't exist (skip if empty for Google Photos)
+if [ -n "${PHOTOS_FOLDER}" ]; then
+    mkdir -p "${PHOTOS_FOLDER}"
+fi
 
 # Create config.json for the Python application
 cat > /app/config.json <<EOF
