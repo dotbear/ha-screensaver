@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.3 (2026-02-14)
+
+### Bug Fixes
+- **Mobile-Friendly OAuth Flow** - Fixed OAuth authentication on mobile devices
+  - Automatically detects mobile devices and uses full-page redirects instead of popups
+  - Handles popup blockers by falling back to full-page redirect on desktop
+  - After successful authentication, automatically redirects back to app and reopens modal
+  - Enhanced OAuth callback pages with beautiful success/error screens
+  - Stores OAuth state in sessionStorage to maintain flow across page redirects
+  - Fixes the "no popup appearing" issue on mobile browsers
+
 ## 1.2.2 (2026-02-14)
 
 ### Bug Fixes
