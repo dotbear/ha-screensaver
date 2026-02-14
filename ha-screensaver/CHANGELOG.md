@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.1 (2026-02-14)
+
+### Bug Fixes
+- **Restored Port 8080 Exposure** - Fixed issue where port 8080 exposure was mistakenly removed in v1.3.0
+  - Addon now properly exposes port 8080 again for direct web interface access
+  - While originally added for Google Photos OAuth, the port exposure is still needed for proper addon functionality
+
 ## 1.3.0 (2026-02-14)
 
 ### Breaking Changes
