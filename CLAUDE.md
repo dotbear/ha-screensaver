@@ -81,7 +81,7 @@ This document provides comprehensive information about the Home Assistant Screen
 
 ```
 ha-screensaver/
-├── addon/ha-screensaver/          # Main add-on directory
+├── ha-screensaver/                # Main add-on directory
 │   ├── app.py                     # Flask application (338 lines)
 │   ├── requirements.txt           # Python dependencies
 │   ├── Dockerfile                 # Container build instructions
@@ -99,10 +99,11 @@ ha-screensaver/
 ├── static/                        # Standalone static files (mirror)
 │   ├── index.html
 │   └── app.js
+├── repository.yaml                # Custom repository configuration
+├── CLAUDE.md                      # AI assistant development guide
 ├── README.md                      # Main project README
 ├── INSTALL_ADDON.md               # Installation instructions
-├── .gitignore                     # Git ignore rules
-└── photos/                        # Local test photos (gitignored)
+└── .gitignore                     # Git ignore rules
 ```
 
 ### Core Files
@@ -151,6 +152,19 @@ ha-screensaver/
 3. Generate `/app/config.json` for Flask
 4. Start Gunicorn with 2 workers, 4 threads
 
+#### repository.yaml (Custom Repository Configuration)
+**Purpose:** Enables installation via Home Assistant custom repository system
+**Location:** Root of repository
+**Format:**
+```yaml
+name: Home Assistant Screensaver Repository
+url: https://github.com/dotbear/ha-screensaver
+maintainer: dotbear
+```
+
+**Usage:** Users add `https://github.com/dotbear/ha-screensaver` to their HA instance via:
+Settings → Add-ons → Add-on Store → ⋮ → Repositories
+
 ---
 
 ## Development Workflows
@@ -163,7 +177,7 @@ ha-screensaver/
 
 #### Quick Start
 ```bash
-cd addon/ha-screensaver
+cd ha-screensaver
 ./test_local.sh
 ```
 
@@ -197,9 +211,16 @@ python3 app.py
 ### Home Assistant Development
 
 #### Installation to HA
+
+**Method 1: Custom Repository (Recommended for users)**
+1. Add repository URL in HA: Settings → Add-ons → Add-on Store → ⋮ → Repositories
+2. Add: `https://github.com/dotbear/ha-screensaver`
+3. Install from Add-on Store
+
+**Method 2: Manual Local Installation (For development)**
 ```bash
 # Copy add-on to Home Assistant
-scp -r addon/ha-screensaver root@homeassistant.local:/addons/
+scp -r ha-screensaver root@homeassistant.local:/addons/
 
 # In HA UI:
 # Settings → Add-ons → ⋮ → Check for updates → Install
@@ -216,7 +237,7 @@ docker logs addon_ha-screensaver
 
 #### Rebuilding After Changes
 1. Modify code locally
-2. `scp -r addon/ha-screensaver root@homeassistant.local:/addons/`
+2. `scp -r ha-screensaver root@homeassistant.local:/addons/`
 3. In HA: Settings → Add-ons → HA Screensaver → Rebuild
 4. Wait ~30 seconds
 5. Restart add-on
@@ -497,7 +518,7 @@ updateTime() {
 ### Local Testing Workflow
 
 ```bash
-cd addon/ha-screensaver
+cd ha-screensaver
 
 # Run test script
 ./test_local.sh
@@ -687,14 +708,14 @@ When discussing code, reference specific files and line numbers:
 ## Version History
 
 **Current:** 1.1.0
-**See:** `addon/ha-screensaver/CHANGELOG.md` for full history
+**See:** `ha-screensaver/CHANGELOG.md` for full history
 
 ---
 
 ## Additional Resources
 
-- **Installation Guide:** `addon/ha-screensaver/INSTALL.md`
-- **Bug Analysis:** `addon/ha-screensaver/BUG_FIXES.md`
+- **Installation Guide:** `ha-screensaver/INSTALL.md`
+- **Bug Analysis:** `ha-screensaver/BUG_FIXES.md`
 - **Main README:** `README.md`
 - **Home Assistant Add-on Docs:** https://developers.home-assistant.io/docs/add-ons
 

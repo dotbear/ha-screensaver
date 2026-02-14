@@ -1,6 +1,37 @@
-# Installing as a Home Assistant Local Add-on
+# Installing Home Assistant Screensaver
 
-## Method 1: Using SSH and File Transfer (Easiest)
+## Method 1: Custom Repository (Easiest - Recommended)
+
+### Step 1: Add Repository to Home Assistant
+
+1. In Home Assistant, go to **Settings** → **Add-ons** → **Add-on Store**
+2. Click the **⋮** menu (three dots) in the top right corner
+3. Select **Repositories**
+4. Add this URL: `https://github.com/dotbear/ha-screensaver`
+5. Click **Add**
+6. Click **Close**
+
+### Step 2: Install the Add-on
+
+1. Refresh the Add-on Store page
+2. Scroll down or search for **"Home Assistant Screensaver"**
+3. Click on the add-on
+4. Click **"Install"** (takes ~30 seconds)
+
+### Step 3: Configure and Start
+
+1. Go to the **Configuration** tab
+2. Set your preferences:
+   - `idle_timeout_seconds`: 60 (time before slideshow starts)
+   - `slide_interval_seconds`: 5 (duration each photo displays)
+   - `photos_source`: "media" (to use HA media library)
+   - `weather_entity`: Optional weather entity ID
+3. Click **"Save"**
+4. Click **"Start"**
+5. Enable **"Start on boot"** if desired
+6. Click **"Open Web UI"** or navigate to `http://homeassistant.local:8080`
+
+## Method 2: Manual Installation via SSH
 
 ### Step 1: SSH into your Home Assistant
 
@@ -21,17 +52,17 @@ mkdir -p /addons
 
 ### Step 3: Copy the add-on files
 
-From your computer, copy the entire `addon/ha-screensaver` directory to your Home Assistant:
+From your computer, copy the entire `ha-screensaver` directory to your Home Assistant:
 
 ```bash
-scp -r addon/ha-screensaver root@homeassistant.local:/addons/
+scp -r ha-screensaver root@homeassistant.local:/addons/
 ```
 
 Or use an SFTP client like FileZilla:
 - Host: `homeassistant.local` (or your HA IP)
 - Username: `root`
 - Password: Your SSH add-on password
-- Upload the `addon/ha-screensaver` folder to `/addons/`
+- Upload the `ha-screensaver` folder to `/addons/`
 
 ### Step 4: Reload Add-ons in Home Assistant
 
@@ -59,7 +90,7 @@ If you have the Samba add-on installed:
 1. Access your Home Assistant via network share
 2. Navigate to the `addons` folder
 3. Create a new folder called `ha-screensaver`
-4. Copy all files from `addon/ha-screensaver` into this folder
+4. Copy all files from `ha-screensaver` into this folder
 5. Follow steps 4-7 from Method 1 above
 
 ## Adding Photos
@@ -81,7 +112,7 @@ If you have the Samba add-on installed:
 ## Troubleshooting
 
 **Add-on doesn't appear after copying files:**
-- Make sure the files are in `/addons/ha-screensaver/` (not `/addons/addon/ha-screensaver/`)
+- Make sure the files are in `/addons/ha-screensaver/` (not `/addons/ha-screensaver/`)
 - Verify `config.yaml` exists in the directory
 - Restart Home Assistant: **Settings** → **System** → **Restart**
 
