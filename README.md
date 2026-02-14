@@ -23,30 +23,45 @@ Perfect for wall-mounted tablets running Home Assistant!
 
 This is a **Home Assistant add-on**. Install it directly from your Home Assistant instance.
 
-### Quick Install
+### Method 1: Add Custom Repository (Recommended)
 
-1. **Copy add-on to Home Assistant:**
-   ```bash
-   scp -r addon/ha-screensaver root@homeassistant.local:/addons/
-   ```
+1. **Add this repository to Home Assistant:**
+   - Go to **Settings** → **Add-ons** → **Add-on Store**
+   - Click **⋮** (three dots menu) in the top right
+   - Select **Repositories**
+   - Add this URL: `https://github.com/dotbear/ha-screensaver`
+   - Click **Add** → **Close**
 
-2. **In Home Assistant:**
-   - Go to **Settings** → **Add-ons**
-   - Click **⋮** menu → **Check for updates**
-   - Find **"Home Assistant Screensaver"** under Local add-ons
-   - Click **Install** (~30 seconds)
+2. **Install the add-on:**
+   - Refresh the Add-on Store page
+   - Find **"Home Assistant Screensaver"** in the list
+   - Click on it and then click **Install** (~30 seconds)
 
 3. **Configure:**
-   - `idle_timeout_seconds`: 60 (or your preference)
-   - `slide_interval_seconds`: 5 (or your preference)
-   - `photos_source`: "media" (to use HA media library)
+   - Go to the **Configuration** tab
+   - Set your preferences:
+     - `idle_timeout_seconds`: 60 (time before slideshow starts)
+     - `slide_interval_seconds`: 5 (duration each photo displays)
+     - `photos_source`: "media" (to use HA media library)
+     - `weather_entity`: Optional weather entity ID
 
 4. **Start the add-on:**
    - Click **Start**
    - Enable **"Start on boot"** (optional)
    - Click **"Open Web UI"** or navigate to `http://homeassistant.local:8080`
 
-For detailed installation instructions, see [INSTALL.md](addon/ha-screensaver/INSTALL.md)
+### Method 2: Manual Installation
+
+If you prefer to install manually:
+
+1. **Copy add-on to Home Assistant:**
+   ```bash
+   scp -r ha-screensaver root@homeassistant.local:/addons/
+   ```
+
+2. **Follow steps 2-4 from Method 1 above**
+
+For detailed installation instructions, see [INSTALL.md](ha-screensaver/INSTALL.md)
 
 ## Adding Photos
 
@@ -100,9 +115,9 @@ This add-on was originally written in Rust but rewritten in Python for better Ho
 
 ## Documentation
 
-- **[INSTALL.md](addon/ha-screensaver/INSTALL.md)** - Detailed installation guide
-- **[BUG_FIXES.md](addon/ha-screensaver/BUG_FIXES.md)** - Bug analysis and fixes
-- **[app.py](addon/ha-screensaver/app.py)** - Source code
+- **[INSTALL.md](ha-screensaver/INSTALL.md)** - Detailed installation guide
+- **[BUG_FIXES.md](ha-screensaver/BUG_FIXES.md)** - Bug analysis and fixes
+- **[app.py](ha-screensaver/app.py)** - Source code
 
 ## Development
 
@@ -111,7 +126,7 @@ This add-on was originally written in Rust but rewritten in Python for better Ho
 Test the Python app on your computer before deploying:
 
 ```bash
-cd addon/ha-screensaver
+cd ha-screensaver
 ./test_local.sh
 ```
 
@@ -143,13 +158,13 @@ Then open http://localhost:8080
 - Verify `config.yaml` exists
 - Restart Home Assistant if needed
 
-For more troubleshooting, see [INSTALL.md](addon/ha-screensaver/INSTALL.md)
+For more troubleshooting, see [INSTALL.md](ha-screensaver/INSTALL.md)
 
 ## Project Structure
 
 ```
 ha-screensaver/
-├── addon/ha-screensaver/      # Home Assistant add-on
+├── ha-screensaver/            # Home Assistant add-on
 │   ├── app.py                 # Main Python Flask application
 │   ├── requirements.txt       # Python dependencies
 │   ├── Dockerfile            # Container build instructions
@@ -160,7 +175,7 @@ ha-screensaver/
 │   │   └── app.js
 │   └── *.md                  # Documentation
 ├── static/                    # Standalone static files
-├── photos/                    # Local photos folder (gitignored)
+├── repository.yaml            # Add-on repository configuration
 └── README.md                  # This file
 ```
 
@@ -175,9 +190,9 @@ ha-screensaver/
 
 Found a bug or have a feature request? Please check the documentation first:
 
-1. **Installation issues:** See [INSTALL.md](addon/ha-screensaver/INSTALL.md)
-2. **Known bugs:** See [BUG_FIXES.md](addon/ha-screensaver/BUG_FIXES.md)
-3. **Code questions:** See [app.py](addon/ha-screensaver/app.py)
+1. **Installation issues:** See [INSTALL.md](ha-screensaver/INSTALL.md)
+2. **Known bugs:** See [BUG_FIXES.md](ha-screensaver/BUG_FIXES.md)
+3. **Code questions:** See [app.py](ha-screensaver/app.py)
 
 ## License
 
