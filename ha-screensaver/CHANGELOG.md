@@ -1,5 +1,33 @@
 # Changelog
 
+## 2.0.0 (2026-02-28)
+
+### Major Features
+- **Now Playing Mode** - When a configured media player is playing music, the screensaver switches to show album art (blurred background + centered sharp art), track title, artist, and album name
+- **Media Transport Controls** - Always-visible previous/play-pause/next buttons (top center) during now playing mode
+- **Volume Slider** - Large touch-friendly volume slider spanning 90% of screen width (bottom) during now playing mode
+- **Automatic Weather Refresh** - Weather overlay now polls Home Assistant every 60 seconds instead of only on screensaver start
+
+### Improvements
+- **Photo Info Relocation** - Date and location EXIF info moved to top-left in two separate rows for better readability
+- **Iframe Memory Management** - Hourly iframe refresh while screensaver is active to prevent browser memory leaks on wall-mounted tablets
+- **Weather Emoji Fix** - Removed variation selectors that caused white background rectangles on some browsers
+
+### New Configuration
+- `media_player_entity` - Home Assistant media player entity ID (e.g., `media_player.spotify`)
+
+### New API Endpoints
+- `GET /api/media` - Current media player state (track info, album art, volume)
+- `GET /api/media/image` - Proxy album art from Home Assistant (restricted to `/api/` paths)
+- `POST /api/media/play_pause` - Toggle media playback
+- `POST /api/media/next` - Skip to next track
+- `POST /api/media/previous` - Skip to previous track
+- `POST /api/media/volume` - Set volume level
+
+### Bug Fixes
+- Fixed local development config file not being read (`config.json` fallback)
+- Removed stale root `static/` directory with broken photo rendering
+
 ## 1.3.1 (2026-02-14)
 
 ### Bug Fixes
