@@ -24,9 +24,11 @@ options:
   photos_source: "media"
   clock_position: "bottom-center"
   weather_entity: ""
+  media_player_entity: ""
 schema:
   idle_timeout_seconds: int(1,3600)
   slide_interval_seconds: int(1,60)
   photos_source: list(media|share|addon)?
   clock_position: list(bottom-center|top-center|top-left|top-right|bottom-left|bottom-right)?
   weather_entity: str?
+  media_player_entity: str?

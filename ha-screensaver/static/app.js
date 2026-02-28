@@ -6,10 +6,15 @@ class ScreensaverApp {
     this.slideHistory = [];
     this.photoExif = {};
     this.weather = null;
+    this.media = null;
     this.idleTimer = null;
     this.slideInterval = null;
     this.clockInterval = null;
+    this.weatherInterval = null;
+    this.mediaInterval = null;
+    this.lastIframeRefresh = Date.now();
     this.isScreensaverActive = false;
+    this.isMediaMode = false;
 
     this.init();
   }
@@ -18,6 +23,7 @@ class ScreensaverApp {
     await this.loadConfig();
     await this.loadPhotos();
     this.setupEventListeners();
+    this.setupMediaControls();
     this.setupIdleDetection();
 
     // Set the iframe source to Home Assistant URL
@@ -84,6 +90,46 @@ class ScreensaverApp {
     });
   }
 
+  setupMediaControls() {
+    document.getElementById('btn-play-pause').addEventListener('click', (e) => {
+      e.stopPropagation();
+      fetch('api/media/play_pause', { method: 'POST' });
+      // Immediately poll for updated state
+      setTimeout(() => this.loadMedia(), 500);
+    });
+
+    document.getElementById('btn-prev').addEventListener('click', (e) => {
+      e.stopPropagation();
+      fetch('api/media/previous', { method: 'POST' });
+      setTimeout(() => this.loadMedia(), 500);
+    });
+
+    document.getElementById('btn-next').addEventListener('click', (e) => {
+      e.stopPropagation();
+      fetch('api/media/next', { method: 'POST' });
+      setTimeout(() => this.loadMedia(), 500);
+    });
+
+    const volumeSlider = document.getElementById('volume-slider');
+    volumeSlider.addEventListener('change', (e) => {
+      e.stopPropagation();
+      const volume = parseInt(e.target.value) / 100;
+      fetch('api/media/volume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ volume_level: volume })
+      });
+    });
+
+    // Prevent slideshow touch interactions on controls
+    ['media-controls-transport', 'media-controls-volume'].forEach(id => {
+      const el = document.getElementById(id);
+      ['mousedown', 'touchstart'].forEach(evt => {
+        el.addEventListener(evt, (e) => e.stopPropagation());
+      });
+    });
+  }
+
   setupIdleDetection() {
     // Only attach listeners once to avoid duplicates on repeated calls
     if (!this._idleListenersAttached) {
@@ -133,11 +179,13 @@ class ScreensaverApp {
     slideshow.classList.add('active');
 
     // Clear any existing slides but preserve overlay elements
-    const clockElement = document.getElementById('screensaver-clock');
-    const weatherElement = document.getElementById('weather-info');
+    const preserveIds = [
+      'screensaver-clock', 'photo-info', 'now-playing',
+      'media-controls-transport', 'media-controls-volume', 'weather-info'
+    ];
+    const preserved = preserveIds.map(id => document.getElementById(id));
     slideshow.innerHTML = '';
-    if (clockElement) slideshow.appendChild(clockElement);
-    if (weatherElement) slideshow.appendChild(weatherElement);
+    preserved.forEach(el => { if (el) slideshow.appendChild(el); });
 
     // Pick a random starting slide
     const startIndex = Math.floor(Math.random() * this.photos.length);
@@ -165,8 +213,20 @@ class ScreensaverApp {
     this.applyClockPosition();
     this.updatePhotoInfo(startIndex);
 
-    // Load weather data
+    // Load weather data and refresh every 60 seconds
     this.loadWeather();
+    clearInterval(this.weatherInterval);
+    this.weatherInterval = setInterval(() => {
+      this.loadWeather();
+    }, 60000);
+
+    // Poll media player state every 10 seconds
+    this.isMediaMode = false;
+    this.loadMedia();
+    clearInterval(this.mediaInterval);
+    this.mediaInterval = setInterval(() => {
+      this.loadMedia();
+    }, 10000);
 
     // Start the clock
     this.startClock();
@@ -239,6 +299,16 @@ class ScreensaverApp {
       const month = now.toLocaleDateString('en-US', { month: 'long' });
       const day = now.getDate();
       dateElement.textContent = `${weekday}, ${month} ${day}`;
+
+      // Reload HA iframe hourly to prevent browser memory leaks
+      if (now.getTime() - this.lastIframeRefresh >= 3600000) {
+        const iframe = document.getElementById('ha-iframe');
+        if (iframe) {
+          console.log('Refreshing HA iframe to free memory');
+          iframe.src = iframe.src;
+        }
+        this.lastIframeRefresh = now.getTime();
+      }
     };
 
     updateTime();
@@ -361,13 +431,12 @@ class ScreensaverApp {
   }
 
   updatePhotoInfo(slideIndex) {
-    const el = document.getElementById('photo-info');
-    if (!el) return;
+    const dateEl = document.getElementById('photo-date');
+    const locationEl = document.getElementById('photo-location');
+    if (!dateEl || !locationEl) return;
     const exif = this.photoExif[slideIndex] || {};
-    const parts = [];
-    if (exif.location) parts.push(`\uD83D\uDCCD ${exif.location}`);
-    if (exif.date) parts.push(`\uD83D\uDCC5 ${exif.date}`);
-    el.textContent = parts.join('   ');
+    dateEl.textContent = exif.date ? `\uD83D\uDCC5 ${exif.date}` : '';
+    locationEl.textContent = exif.location ? `\uD83D\uDCCD ${exif.location}` : '';
   }
 
   async loadWeather() {
@@ -387,14 +456,14 @@ class ScreensaverApp {
     if (!el || !this.weather) { if (el) el.textContent = ''; return; }
 
     const icons = {
-      'sunny': '\u2600\uFE0F', 'clear-night': '\uD83C\uDF19',
-      'cloudy': '\u2601\uFE0F', 'partlycloudy': '\u26C5',
-      'rainy': '\uD83C\uDF27\uFE0F', 'pouring': '\uD83C\uDF27\uFE0F',
-      'snowy': '\uD83C\uDF28\uFE0F', 'snowy-rainy': '\uD83C\uDF28\uFE0F',
+      'sunny': '\u2600', 'clear-night': '\uD83C\uDF19',
+      'cloudy': '\u2601', 'partlycloudy': '\u26C5',
+      'rainy': '\uD83C\uDF27', 'pouring': '\uD83C\uDF27',
+      'snowy': '\uD83C\uDF28', 'snowy-rainy': '\uD83C\uDF28',
       'windy': '\uD83D\uDCA8', 'windy-variant': '\uD83D\uDCA8',
-      'fog': '\uD83C\uDF2B\uFE0F', 'hail': '\uD83C\uDF28\uFE0F',
-      'lightning': '\u26C8\uFE0F', 'lightning-rainy': '\u26C8\uFE0F',
-      'exceptional': '\u26A0\uFE0F'
+      'fog': '\uD83C\uDF2B', 'hail': '\uD83C\uDF28',
+      'lightning': '\u26C8', 'lightning-rainy': '\u26C8',
+      'exceptional': '\u26A0'
     };
 
     const icon = icons[this.weather.condition] || '';
@@ -405,6 +474,97 @@ class ScreensaverApp {
         temp = (temp - 32) * 5 / 9;
       }
       el.textContent = `${icon} ${Math.round(temp)}\u00b0C`;
+    }
+  }
+
+  async loadMedia() {
+    if (!this.config.media_player_entity) return;
+    try {
+      const response = await fetch('api/media');
+      if (!response.ok) return;
+      this.media = await response.json();
+
+      if (this.media && (this.media.state === 'playing' || this.media.state === 'paused')) {
+        this.enterMediaMode();
+      } else if (this.isMediaMode) {
+        this.exitMediaMode();
+      }
+    } catch (e) {
+      console.error('Error loading media:', e);
+    }
+  }
+
+  enterMediaMode() {
+    const np = document.getElementById('now-playing');
+    const photoInfo = document.getElementById('photo-info');
+    if (!np || !this.media) return;
+
+    // Pause photo slideshow when entering media mode
+    if (!this.isMediaMode) {
+      clearInterval(this.slideInterval);
+      this.slideInterval = null;
+      this.isMediaMode = true;
+    }
+
+    // Update album art (only if URL changed)
+    const art = document.getElementById('now-playing-art');
+    const bg = document.getElementById('now-playing-bg');
+    const newUrl = this.media.image_url || '';
+    if (art && newUrl && art.src !== new URL(newUrl, window.location.href).href) {
+      art.src = newUrl;
+      bg.style.backgroundImage = `url(${newUrl})`;
+    }
+
+    // Update track info
+    document.getElementById('now-playing-title').textContent = this.media.title || '';
+    document.getElementById('now-playing-artist').textContent = this.media.artist || '';
+    document.getElementById('now-playing-album').textContent = this.media.album || '';
+
+    np.classList.add('active');
+    if (photoInfo) photoInfo.style.display = 'none';
+
+    // Show media controls
+    const transport = document.getElementById('media-controls-transport');
+    const volume = document.getElementById('media-controls-volume');
+    if (transport) transport.classList.add('active');
+    if (volume) volume.classList.add('active');
+
+    // Update play/pause icon
+    const btn = document.getElementById('btn-play-pause');
+    if (btn) btn.textContent = this.media.state === 'playing' ? '\u23F8' : '\u25B6';
+
+    // Sync volume slider
+    const slider = document.getElementById('volume-slider');
+    if (slider && this.media.volume_level != null) {
+      slider.value = Math.round(this.media.volume_level * 100);
+    }
+
+    // Force white clock text — album art backgrounds are typically dark after blur
+    this.setClockColor(true);
+  }
+
+  exitMediaMode() {
+    if (!this.isMediaMode) return;
+    this.isMediaMode = false;
+
+    const np = document.getElementById('now-playing');
+    const photoInfo = document.getElementById('photo-info');
+    const transport = document.getElementById('media-controls-transport');
+    const volume = document.getElementById('media-controls-volume');
+    if (np) np.classList.remove('active');
+    if (photoInfo) photoInfo.style.display = '';
+    if (transport) transport.classList.remove('active');
+    if (volume) volume.classList.remove('active');
+
+    // Resume photo slideshow
+    if (this.isScreensaverActive && !this.slideInterval) {
+      this.slideInterval = setInterval(() => {
+        this.nextSlide();
+      }, this.config.slide_interval_seconds * 1000);
+
+      // Update clock color for current photo slide
+      const activeSlide = document.querySelector('.slide.active');
+      if (activeSlide) this.updateClockColor(activeSlide);
     }
   }
 
@@ -420,6 +580,13 @@ class ScreensaverApp {
 
     clearInterval(this.clockInterval);
     this.clockInterval = null;
+
+    clearInterval(this.weatherInterval);
+    this.weatherInterval = null;
+
+    clearInterval(this.mediaInterval);
+    this.mediaInterval = null;
+    this.exitMediaMode();
 
     // Restart idle detection
     this.setupIdleDetection();

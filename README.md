@@ -12,9 +12,12 @@ Perfect for wall-mounted tablets running Home Assistant!
 - 🕐 On-screen clock with adaptive color (auto-adjusts to image brightness)
 - 📍 EXIF photo info display (location and date)
 - 🌤️ Weather overlay from Home Assistant weather entities
+- 🎵 Now Playing mode with album art, track info, and playback controls
+- 🔊 Volume slider and transport controls (previous, play/pause, next)
 - ⚡ Configurable slide duration (1-60 seconds)
 - 👆 Touch/click to exit slideshow and return to Home Assistant
 - ⏪ Tap left edge of screen to go back to previous photo
+- ♻️ Automatic iframe refresh to prevent browser memory leaks
 - ⚙️ Easy configuration via Home Assistant UI
 - 🎨 Supports JPG, PNG, GIF, and WebP images
 - 🚀 Optimized for Home Assistant Green (ARM devices)
@@ -44,6 +47,7 @@ This is a **Home Assistant add-on**. Install it directly from your Home Assistan
      - `slide_interval_seconds`: 5 (duration each photo displays)
      - `photos_source`: "media" (to use HA media library)
      - `weather_entity`: Optional weather entity ID
+     - `media_player_entity`: Optional media player entity ID
 
 4. **Start the add-on:**
    - Click **Start**
@@ -87,11 +91,12 @@ Point the app to upload to your Home Assistant's media folder.
 Configure via the Home Assistant add-on configuration UI:
 
 ```yaml
-idle_timeout_seconds: 60      # Time before slideshow starts (1-3600)
-slide_interval_seconds: 5     # Duration each photo displays (1-60)
-photos_source: media          # Where to find photos: "media", "share", or "addon"
-clock_position: bottom-center # Clock position: bottom-center, top-center, top-left, top-right, bottom-left, bottom-right
-weather_entity: ""            # HA weather entity ID (e.g., "weather.home")
+idle_timeout_seconds: 60         # Time before slideshow starts (1-3600)
+slide_interval_seconds: 5        # Duration each photo displays (1-60)
+photos_source: media             # Where to find photos: "media", "share", or "addon"
+clock_position: bottom-center    # Clock position: bottom-center, top-center, top-left, top-right, bottom-left, bottom-right
+weather_entity: ""               # HA weather entity ID (e.g., "weather.home")
+media_player_entity: ""          # HA media player entity ID (e.g., "media_player.spotify")
 ```
 
 ## Usage
@@ -100,7 +105,8 @@ weather_entity: ""            # HA weather entity ID (e.g., "weather.home")
 2. Your Home Assistant dashboard will be displayed
 3. After the configured idle time, photos will start with an on-screen clock
 4. Photos display in random order with adaptive text color for the clock
-5. Touch the screen to return to the dashboard (tap left edge to go back a photo)
+5. If a media player is configured and playing, the screensaver shows album art with track info and playback controls
+6. Touch the screen to return to the dashboard (tap left edge to go back a photo)
 
 ## Why Python?
 
@@ -174,7 +180,6 @@ ha-screensaver/
 │   │   ├── index.html
 │   │   └── app.js
 │   └── *.md                  # Documentation
-├── static/                    # Standalone static files
 ├── repository.yaml            # Add-on repository configuration
 └── README.md                  # This file
 ```
@@ -184,6 +189,12 @@ ha-screensaver/
 - `GET /api/config` - Get current configuration
 - `GET /api/photos` - Get list of photo URLs with EXIF metadata
 - `GET /api/weather` - Get weather data from Home Assistant
+- `GET /api/media` - Get current media player state (track info, album art, volume)
+- `GET /api/media/image` - Proxy album art image from Home Assistant
+- `POST /api/media/play_pause` - Toggle media playback
+- `POST /api/media/next` - Skip to next track
+- `POST /api/media/previous` - Skip to previous track
+- `POST /api/media/volume` - Set volume level
 - `GET /photos/<filename>` - Serve individual photo
 
 ## Contributing

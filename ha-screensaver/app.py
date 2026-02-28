@@ -10,6 +10,7 @@ import os
 import json
 import logging
 import time
+import urllib.parse
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -21,7 +22,7 @@ try:
 except ImportError:
     HAS_PILLOW = False
 
-from flask import Flask, jsonify, request, send_file, send_from_directory
+from flask import Flask, Response, jsonify, request, send_file, send_from_directory
 from flask_cors import CORS
 
 logging.basicConfig(
@@ -34,6 +35,8 @@ app = Flask(__name__, static_folder='static')
 CORS(app)
 
 CONFIG_FILE = Path("/app/config.json")
+if not CONFIG_FILE.exists():
+    CONFIG_FILE = Path("config.json")
 
 DEFAULT_CONFIG = {
     "home_assistant_url": "http://homeassistant:8123",
@@ -42,7 +45,8 @@ DEFAULT_CONFIG = {
     "idle_timeout_seconds": 60,
     "slide_interval_seconds": 5,
     "clock_position": "bottom-center",
-    "weather_entity": ""
+    "weather_entity": "",
+    "media_player_entity": ""
 }
 
 # ============================================================================
@@ -285,6 +289,143 @@ def get_weather():
     except Exception as e:
         logger.error(f"Error fetching weather: {e}")
         return jsonify(None)
+
+
+@app.route('/api/media', methods=['GET'])
+def get_media():
+    """GET /api/media - Return current media player state from Home Assistant."""
+    config = load_config()
+    media_entity = config.get('media_player_entity', '')
+
+    if not media_entity:
+        return jsonify(None)
+
+    supervisor_token = os.environ.get('SUPERVISOR_TOKEN', '')
+    if not supervisor_token:
+        logger.warning("No SUPERVISOR_TOKEN available for media API")
+        return jsonify(None)
+
+    try:
+        url = f'http://supervisor/core/api/states/{media_entity}'
+        req = urllib.request.Request(url, headers={
+            'Authorization': f'Bearer {supervisor_token}',
+            'Content-Type': 'application/json'
+        })
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read())
+
+        state = data.get('state', '')
+        attrs = data.get('attributes', {})
+
+        entity_picture = attrs.get('entity_picture', '')
+        image_url = None
+        if entity_picture:
+            if entity_picture.startswith('/'):
+                # Relative HA URL — proxy through our endpoint
+                image_url = f'/api/media/image?url={urllib.parse.quote(entity_picture)}'
+            else:
+                # Absolute URL (e.g. Spotify CDN) — use directly
+                image_url = entity_picture
+
+        return jsonify({
+            'state': state,
+            'title': attrs.get('media_title', ''),
+            'artist': attrs.get('media_artist', ''),
+            'album': attrs.get('media_album_name', ''),
+            'image_url': image_url,
+            'volume_level': attrs.get('volume_level')
+        })
+    except Exception as e:
+        logger.error(f"Error fetching media: {e}")
+        return jsonify(None)
+
+
+@app.route('/api/media/image', methods=['GET'])
+def get_media_image():
+    """GET /api/media/image - Proxy album art image from Home Assistant."""
+    image_path = request.args.get('url', '')
+    if not image_path or not image_path.startswith('/api/'):
+        return jsonify({"error": "Invalid image URL"}), 400
+
+    supervisor_token = os.environ.get('SUPERVISOR_TOKEN', '')
+    if not supervisor_token:
+        return jsonify({"error": "No auth token"}), 500
+
+    try:
+        url = f'http://supervisor/core{image_path}'
+        req = urllib.request.Request(url, headers={
+            'Authorization': f'Bearer {supervisor_token}'
+        })
+        with urllib.request.urlopen(req, timeout=10) as response:
+            image_data = response.read()
+            content_type = response.headers.get('Content-Type', 'image/jpeg')
+
+        return Response(image_data, content_type=content_type)
+    except Exception as e:
+        logger.error(f"Error fetching media image: {e}")
+        return jsonify({"error": "Failed to fetch image"}), 500
+
+
+def _call_media_service(service: str, extra_data: Optional[Dict] = None) -> bool:
+    """Call a Home Assistant media_player service."""
+    config = load_config()
+    media_entity = config.get('media_player_entity', '')
+    if not media_entity:
+        return False
+
+    supervisor_token = os.environ.get('SUPERVISOR_TOKEN', '')
+    if not supervisor_token:
+        return False
+
+    try:
+        url = f'http://supervisor/core/api/services/media_player/{service}'
+        body = {"entity_id": media_entity}
+        if extra_data:
+            body.update(extra_data)
+        data = json.dumps(body).encode('utf-8')
+        req = urllib.request.Request(url, data=data, headers={
+            'Authorization': f'Bearer {supervisor_token}',
+            'Content-Type': 'application/json'
+        })
+        with urllib.request.urlopen(req, timeout=5) as response:
+            response.read()
+        return True
+    except Exception as e:
+        logger.error(f"Error calling media_player/{service}: {e}")
+        return False
+
+
+@app.route('/api/media/play_pause', methods=['POST'])
+def media_play_pause():
+    """POST /api/media/play_pause - Toggle play/pause."""
+    ok = _call_media_service('media_play_pause')
+    return jsonify({"ok": ok})
+
+
+@app.route('/api/media/next', methods=['POST'])
+def media_next():
+    """POST /api/media/next - Skip to next track."""
+    ok = _call_media_service('media_next_track')
+    return jsonify({"ok": ok})
+
+
+@app.route('/api/media/previous', methods=['POST'])
+def media_previous():
+    """POST /api/media/previous - Skip to previous track."""
+    ok = _call_media_service('media_previous_track')
+    return jsonify({"ok": ok})
+
+
+@app.route('/api/media/volume', methods=['POST'])
+def media_volume():
+    """POST /api/media/volume - Set volume level (0.0 - 1.0)."""
+    body = request.get_json(silent=True) or {}
+    volume = body.get('volume_level')
+    if volume is None:
+        return jsonify({"error": "volume_level required"}), 400
+    volume = max(0.0, min(1.0, float(volume)))
+    ok = _call_media_service('volume_set', {"volume_level": volume})
+    return jsonify({"ok": ok})
 
 
 @app.route('/photos/<path:filename>', methods=['GET'])
