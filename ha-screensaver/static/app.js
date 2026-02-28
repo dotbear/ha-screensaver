@@ -453,17 +453,17 @@ class ScreensaverApp {
 
   updateWeatherDisplay() {
     const el = document.getElementById('weather-info');
-    if (!el || !this.weather) { if (el) el.textContent = ''; return; }
+    if (!el || !this.weather) { if (el) el.innerHTML = ''; return; }
 
     const icons = {
-      'sunny': '\u2600', 'clear-night': '\uD83C\uDF19',
-      'cloudy': '\u2601', 'partlycloudy': '\u26C5',
-      'rainy': '\uD83C\uDF27', 'pouring': '\uD83C\uDF27',
-      'snowy': '\uD83C\uDF28', 'snowy-rainy': '\uD83C\uDF28',
+      'sunny': '\u2600\uFE0F', 'clear-night': '\uD83C\uDF19',
+      'cloudy': '\u2601\uFE0F', 'partlycloudy': '\u26C5\uFE0F',
+      'rainy': '\uD83C\uDF27\uFE0F', 'pouring': '\uD83C\uDF27\uFE0F',
+      'snowy': '\uD83C\uDF28\uFE0F', 'snowy-rainy': '\uD83C\uDF28\uFE0F',
       'windy': '\uD83D\uDCA8', 'windy-variant': '\uD83D\uDCA8',
-      'fog': '\uD83C\uDF2B', 'hail': '\uD83C\uDF28',
-      'lightning': '\u26C8', 'lightning-rainy': '\u26C8',
-      'exceptional': '\u26A0'
+      'fog': '\uD83C\uDF2B\uFE0F', 'hail': '\uD83C\uDF28\uFE0F',
+      'lightning': '\u26C8\uFE0F', 'lightning-rainy': '\u26C8\uFE0F',
+      'exceptional': '\u26A0\uFE0F'
     };
 
     const icon = icons[this.weather.condition] || '';
@@ -473,7 +473,8 @@ class ScreensaverApp {
       if (this.weather.temperature_unit === '\u00b0F' || this.weather.temperature_unit === '°F') {
         temp = (temp - 32) * 5 / 9;
       }
-      el.textContent = `${icon} ${Math.round(temp)}\u00b0C`;
+      // Icon in separate span without text-shadow to prevent white background artifacts
+      el.innerHTML = `<span style="text-shadow:none">${icon}</span> ${Math.round(temp)}\u00b0C`;
     }
   }
 

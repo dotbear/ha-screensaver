@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.1 (2026-02-28)
+
+### Bug Fixes
+- **Weather icon not rendering** - Restored emoji variation selectors for proper icon display, wrapped icon in a separate span without text-shadow to prevent the white background artifact
+
 ## 2.0.0 (2026-02-28)
 
 ### Major Features
