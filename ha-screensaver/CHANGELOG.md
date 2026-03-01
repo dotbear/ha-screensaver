@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.2 (2026-03-01)
+
+### Bug Fixes
+- **Media control icons not rendering** - Transport buttons (⏮ ⏯ ⏭) and volume icons (🔈 🔊) were showing literal `\uXXXX` escape text instead of icons; replaced with HTML entities
+- **Now playing dark fallback** - Added dark background to now-playing overlay so it doesn't show through to the photo slideshow when album art fails to load
+
 ## 2.0.1 (2026-02-28)
 
 ### Bug Fixes
