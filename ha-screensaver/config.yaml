@@ -25,6 +25,7 @@ options:
   clock_position: "bottom-center"
   weather_entity: ""
   media_player_entity: ""
+  media_player_sources: ""
 schema:
   idle_timeout_seconds: int(1,3600)
   slide_interval_seconds: int(1,60)
@@ -32,3 +33,4 @@ schema:
   clock_position: list(bottom-center|top-center|top-left|top-right|bottom-left|bottom-right)?
   weather_entity: str?
   media_player_entity: str?
+  media_player_sources: str?

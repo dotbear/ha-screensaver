@@ -7,6 +7,7 @@ PHOTOS_SOURCE=$(bashio::config 'photos_source')
 CLOCK_POSITION=$(bashio::config 'clock_position')
 WEATHER_ENTITY=$(bashio::config 'weather_entity')
 MEDIA_PLAYER_ENTITY=$(bashio::config 'media_player_entity')
+MEDIA_PLAYER_SOURCES=$(bashio::config 'media_player_sources')
 
 # Log startup information
 bashio::log.info "Starting Home Assistant Screensaver..."
@@ -15,6 +16,7 @@ bashio::log.info "Slide interval: ${SLIDE_INTERVAL} seconds"
 bashio::log.info "Clock position: ${CLOCK_POSITION}"
 bashio::log.info "Weather entity: ${WEATHER_ENTITY}"
 bashio::log.info "Media player entity: ${MEDIA_PLAYER_ENTITY}"
+bashio::log.info "Media player sources: ${MEDIA_PLAYER_SOURCES}"
 bashio::log.info "Photos source: ${PHOTOS_SOURCE}"
 
 # Determine photos folder based on configuration
@@ -45,7 +47,8 @@ cat > /app/config.json <<EOF
   "slide_interval_seconds": ${SLIDE_INTERVAL},
   "clock_position": "${CLOCK_POSITION}",
   "weather_entity": "${WEATHER_ENTITY}",
-  "media_player_entity": "${MEDIA_PLAYER_ENTITY}"
+  "media_player_entity": "${MEDIA_PLAYER_ENTITY}",
+  "media_player_sources": "${MEDIA_PLAYER_SOURCES}"
 }
 EOF
 

@@ -485,7 +485,10 @@ class ScreensaverApp {
       if (!response.ok) return;
       this.media = await response.json();
 
-      if (this.media && (this.media.state === 'playing' || this.media.state === 'paused')) {
+      const isActive = this.media && (this.media.state === 'playing' || this.media.state === 'paused');
+      const sourceAllowed = this.isSourceAllowed(this.media?.source);
+
+      if (isActive && sourceAllowed) {
         this.enterMediaMode();
       } else if (this.isMediaMode) {
         this.exitMediaMode();
@@ -493,6 +496,13 @@ class ScreensaverApp {
     } catch (e) {
       console.error('Error loading media:', e);
     }
+  }
+
+  isSourceAllowed(source) {
+    const filter = (this.config.media_player_sources || '').trim();
+    if (!filter) return true; // empty = all sources allowed
+    const allowed = filter.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    return allowed.includes((source || '').toLowerCase());
   }
 
   enterMediaMode() {
