@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.0 (2026-03-09)
+
+### Features
+- **Media Source Filter** - New `media_player_sources` option to control which sources trigger the now playing screensaver (e.g., set to "Spotify" to ignore TV/movie playback)
+
+### New Configuration
+- `media_player_sources` - Comma-separated list of media player sources that should activate the now playing view (leave empty to allow all sources)
+
 ## 2.0.2 (2026-03-01)
 
 ### Bug Fixes
