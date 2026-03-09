@@ -46,7 +46,8 @@ DEFAULT_CONFIG = {
     "slide_interval_seconds": 5,
     "clock_position": "bottom-center",
     "weather_entity": "",
-    "media_player_entity": ""
+    "media_player_entity": "",
+    "media_player_sources": ""
 }
 
 # ============================================================================
@@ -329,6 +330,7 @@ def get_media():
 
         return jsonify({
             'state': state,
+            'source': attrs.get('source', ''),
             'title': attrs.get('media_title', ''),
             'artist': attrs.get('media_artist', ''),
             'album': attrs.get('media_album_name', ''),
