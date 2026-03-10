@@ -15,8 +15,13 @@ class ScreensaverApp {
     this.lastIframeRefresh = Date.now();
     this.isScreensaverActive = false;
     this.isMediaMode = false;
+    this.demoMode = new URLSearchParams(window.location.search).has('demo');
 
     this.init();
+  }
+
+  apiUrl(path) {
+    return this.demoMode ? `api/demo/${path}` : `api/${path}`;
   }
 
   async init() {
@@ -33,7 +38,7 @@ class ScreensaverApp {
 
   async loadConfig() {
     try {
-      const response = await fetch('api/config');
+      const response = await fetch(this.apiUrl('config'));
       this.config = await response.json();
 
       // Set default slide interval if not present
@@ -55,6 +60,15 @@ class ScreensaverApp {
 
   async loadPhotos() {
     try {
+      if (this.demoMode) {
+        // In demo mode, use a placeholder image so the screensaver can start
+        this.photos = [{
+          url: 'https://picsum.photos/seed/demo/1920/1080',
+          exif: { date: 'March 10, 2026', location: 'Copenhagen, Denmark' }
+        }];
+        console.log('Demo mode: using placeholder photo');
+        return;
+      }
       const response = await fetch('api/photos');
       const data = await response.json();
       // API returns [{url, exif}, ...] -- store full objects
@@ -442,7 +456,7 @@ class ScreensaverApp {
   async loadWeather() {
     if (!this.config.weather_entity) return;
     try {
-      const response = await fetch('api/weather');
+      const response = await fetch(this.apiUrl('weather'));
       if (!response.ok) return;
       this.weather = await response.json();
       this.updateWeatherDisplay();
@@ -455,15 +469,23 @@ class ScreensaverApp {
     const el = document.getElementById('weather-info');
     if (!el || !this.weather) { if (el) el.innerHTML = ''; return; }
 
+    // SVG weather icons (Heroicons-style)
     const icons = {
-      'sunny': '\u2600\uFE0F', 'clear-night': '\uD83C\uDF19',
-      'cloudy': '\u2601\uFE0F', 'partlycloudy': '\u26C5\uFE0F',
-      'rainy': '\uD83C\uDF27\uFE0F', 'pouring': '\uD83C\uDF27\uFE0F',
-      'snowy': '\uD83C\uDF28\uFE0F', 'snowy-rainy': '\uD83C\uDF28\uFE0F',
-      'windy': '\uD83D\uDCA8', 'windy-variant': '\uD83D\uDCA8',
-      'fog': '\uD83C\uDF2B\uFE0F', 'hail': '\uD83C\uDF28\uFE0F',
-      'lightning': '\u26C8\uFE0F', 'lightning-rainy': '\u26C8\uFE0F',
-      'exceptional': '\u26A0\uFE0F'
+      'sunny': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.25a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75ZM7.5 12a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM18.894 6.166a.75.75 0 0 0-1.06-1.06l-1.591 1.59a.75.75 0 1 0 1.06 1.061l1.591-1.59ZM21.75 12a.75.75 0 0 1-.75.75h-2.25a.75.75 0 0 1 0-1.5H21a.75.75 0 0 1 .75.75ZM17.834 18.894a.75.75 0 0 0 1.06-1.06l-1.59-1.591a.75.75 0 1 0-1.061 1.06l1.59 1.591ZM12 18a.75.75 0 0 1 .75.75V21a.75.75 0 0 1-1.5 0v-2.25A.75.75 0 0 1 12 18ZM7.758 17.303a.75.75 0 0 0-1.061-1.06l-1.591 1.59a.75.75 0 0 0 1.06 1.061l1.591-1.59ZM6 12a.75.75 0 0 1-.75.75H3a.75.75 0 0 1 0-1.5h2.25A.75.75 0 0 1 6 12ZM6.697 7.757a.75.75 0 0 0 1.06-1.06l-1.59-1.591a.75.75 0 0 0-1.061 1.06l1.59 1.591Z"/></svg>',
+      'clear-night': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M9.528 1.718a.75.75 0 0 1 .162.819A8.97 8.97 0 0 0 9 6a9 9 0 0 0 9 9 8.97 8.97 0 0 0 3.463-.69.75.75 0 0 1 .981.98 10.503 10.503 0 0 1-9.694 6.46c-5.799 0-10.5-4.7-10.5-10.5 0-4.368 2.667-8.112 6.46-9.694a.75.75 0 0 1 .818.162Z" clip-rule="evenodd"/></svg>',
+      'cloudy': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M4.5 9.75a6 6 0 0 1 11.573-2.226 3.75 3.75 0 0 1 4.133 4.303A4.5 4.5 0 0 1 18 20.25H6.75a5.25 5.25 0 0 1-.75-10.449V9.75Z" clip-rule="evenodd"/></svg>',
+      'partlycloudy': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M4.5 9.75a6 6 0 0 1 11.573-2.226 3.75 3.75 0 0 1 4.133 4.303A4.5 4.5 0 0 1 18 20.25H6.75a5.25 5.25 0 0 1-.75-10.449V9.75ZM12 6a3.75 3.75 0 0 0-3.65 4.633.75.75 0 0 1-.583.86A3.75 3.75 0 0 0 6.75 18.75H18a3 3 0 0 0 .566-5.94.75.75 0 0 1-.578-.724 2.25 2.25 0 0 0-2.416-2.237.75.75 0 0 1-.707-.46A3.75 3.75 0 0 0 12 6Z" clip-rule="evenodd"/></svg>',
+      'rainy': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M4.5 9.75a6 6 0 0 1 11.573-2.226 3.75 3.75 0 0 1 4.133 4.303A4.5 4.5 0 0 1 18 20.25H6.75a5.25 5.25 0 0 1-.75-10.449V9.75Z" clip-rule="evenodd"/><path d="M8.25 17.25a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0V18a.75.75 0 0 1 .75-.75Zm4-1.5a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0v-2.25a.75.75 0 0 1 .75-.75Zm4 1.5a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0V18a.75.75 0 0 1 .75-.75Z"/></svg>',
+      'pouring': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M4.5 9.75a6 6 0 0 1 11.573-2.226 3.75 3.75 0 0 1 4.133 4.303A4.5 4.5 0 0 1 18 20.25H6.75a5.25 5.25 0 0 1-.75-10.449V9.75Z" clip-rule="evenodd"/><path d="M7.5 17.25a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-1.5 0v-3a.75.75 0 0 1 .75-.75Zm3-1.5a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-1.5 0v-3a.75.75 0 0 1 .75-.75Zm3 1.5a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-1.5 0v-3a.75.75 0 0 1 .75-.75Zm3-1.5a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-1.5 0v-3a.75.75 0 0 1 .75-.75Z"/></svg>',
+      'snowy': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M4.5 9.75a6 6 0 0 1 11.573-2.226 3.75 3.75 0 0 1 4.133 4.303A4.5 4.5 0 0 1 18 20.25H6.75a5.25 5.25 0 0 1-.75-10.449V9.75Z" clip-rule="evenodd"/><circle cx="8.25" cy="18.75" r="1"/><circle cx="12" cy="17.25" r="1"/><circle cx="15.75" cy="18.75" r="1"/></svg>',
+      'snowy-rainy': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M4.5 9.75a6 6 0 0 1 11.573-2.226 3.75 3.75 0 0 1 4.133 4.303A4.5 4.5 0 0 1 18 20.25H6.75a5.25 5.25 0 0 1-.75-10.449V9.75Z" clip-rule="evenodd"/><circle cx="8.25" cy="18.75" r="1"/><circle cx="15.75" cy="18.75" r="1"/><path d="M12 17.25a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0V18a.75.75 0 0 1 .75-.75Z"/></svg>',
+      'windy': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>',
+      'windy-variant': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>',
+      'fog': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4.5 9.75a6 6 0 0 1 11.573-2.226 3.75 3.75 0 0 1 4.133 4.303A4.5 4.5 0 0 1 18 20.25H6.75"/><line x1="3" y1="20" x2="21" y2="20"/><line x1="3" y1="17" x2="21" y2="17"/></svg>',
+      'hail': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M4.5 9.75a6 6 0 0 1 11.573-2.226 3.75 3.75 0 0 1 4.133 4.303A4.5 4.5 0 0 1 18 20.25H6.75a5.25 5.25 0 0 1-.75-10.449V9.75Z" clip-rule="evenodd"/><circle cx="8.25" cy="18.75" r="1.25"/><circle cx="12" cy="17.25" r="1.25"/><circle cx="15.75" cy="18.75" r="1.25"/></svg>',
+      'lightning': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M14.615 1.595a.75.75 0 0 1 .359.852L12.982 9.75h7.268a.75.75 0 0 1 .548 1.262l-10.5 11.25a.75.75 0 0 1-1.272-.71l1.992-7.302H3.75a.75.75 0 0 1-.548-1.262l10.5-11.25a.75.75 0 0 1 .913-.143Z" clip-rule="evenodd"/></svg>',
+      'lightning-rainy': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M14.615 1.595a.75.75 0 0 1 .359.852L12.982 9.75h7.268a.75.75 0 0 1 .548 1.262l-10.5 11.25a.75.75 0 0 1-1.272-.71l1.992-7.302H3.75a.75.75 0 0 1-.548-1.262l10.5-11.25a.75.75 0 0 1 .913-.143Z" clip-rule="evenodd"/></svg>',
+      'exceptional': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.499-2.599 4.499H4.645c-2.309 0-3.752-2.5-2.598-4.499L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd"/></svg>'
     };
 
     const icon = icons[this.weather.condition] || '';
@@ -473,15 +495,14 @@ class ScreensaverApp {
       if (this.weather.temperature_unit === '\u00b0F' || this.weather.temperature_unit === '°F') {
         temp = (temp - 32) * 5 / 9;
       }
-      // Icon in separate span without text-shadow to prevent white background artifacts
-      el.innerHTML = `<span style="text-shadow:none">${icon}</span> ${Math.round(temp)}\u00b0C`;
+      el.innerHTML = `${icon}<span>${Math.round(temp)}\u00b0C</span>`;
     }
   }
 
   async loadMedia() {
     if (!this.config.media_player_entity) return;
     try {
-      const response = await fetch('api/media');
+      const response = await fetch(this.apiUrl('media'));
       if (!response.ok) return;
       this.media = await response.json();
 
@@ -534,6 +555,10 @@ class ScreensaverApp {
     np.classList.add('active');
     if (photoInfo) photoInfo.style.display = 'none';
 
+    // Push clock up to make room for volume slider
+    const clock = document.getElementById('screensaver-clock');
+    if (clock) clock.classList.add('media-active');
+
     // Show media controls
     const transport = document.getElementById('media-controls-transport');
     const volume = document.getElementById('media-controls-volume');
@@ -541,8 +566,12 @@ class ScreensaverApp {
     if (volume) volume.classList.add('active');
 
     // Update play/pause icon
-    const btn = document.getElementById('btn-play-pause');
-    if (btn) btn.textContent = this.media.state === 'playing' ? '\u23F8' : '\u25B6';
+    const iconPause = document.getElementById('icon-pause');
+    const iconPlay = document.getElementById('icon-play');
+    if (iconPause && iconPlay) {
+      iconPause.style.display = this.media.state === 'playing' ? '' : 'none';
+      iconPlay.style.display = this.media.state === 'playing' ? 'none' : '';
+    }
 
     // Sync volume slider
     const slider = document.getElementById('volume-slider');
@@ -566,6 +595,10 @@ class ScreensaverApp {
     if (photoInfo) photoInfo.style.display = '';
     if (transport) transport.classList.remove('active');
     if (volume) volume.classList.remove('active');
+
+    // Restore clock position
+    const clock = document.getElementById('screensaver-clock');
+    if (clock) clock.classList.remove('media-active');
 
     // Resume photo slideshow
     if (this.isScreensaverActive && !this.slideInterval) {

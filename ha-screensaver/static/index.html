@@ -26,11 +26,8 @@
         }
 
         #slideshow {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            position: fixed;
+            inset: 0;
             background: #000;
             display: none;
             z-index: 1000;
@@ -80,6 +77,9 @@
         #screensaver-clock.pos-bottom-left { bottom: 40px; left: 40px; text-align: left; }
         #screensaver-clock.pos-bottom-right { bottom: 40px; right: 40px; text-align: right; }
 
+        /* When media mode is active, push the clock up to make room for volume slider */
+        #screensaver-clock.media-active { bottom: 100px; }
+
         #clock-time {
             font-size: 72px;
             font-weight: 600;
@@ -123,18 +123,20 @@
         /* Now Playing overlay */
         #now-playing {
             position: absolute;
-            width: 100%;
-            height: 100%;
+            inset: 0;
             display: none;
             align-items: center;
             justify-content: center;
             flex-direction: column;
             z-index: 999;
             background: #111;
+            overflow: hidden;
         }
 
         #now-playing.active {
             display: flex;
+            /* Offset upward to leave room for clock + volume bar at bottom */
+            padding-bottom: 200px;
         }
 
         #now-playing-bg {
@@ -194,7 +196,7 @@
             z-index: 1002;
             display: none;
             align-items: center;
-            gap: 32px;
+            gap: 24px;
         }
 
         #media-controls-transport.active {
@@ -205,34 +207,42 @@
             background: none;
             border: none;
             color: white;
-            font-size: 36px;
             cursor: pointer;
-            padding: 8px 12px;
-            line-height: 1;
-            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 0, 0, 0.4);
-            opacity: 0.9;
+            padding: 10px;
+            line-height: 0;
+            opacity: 0.85;
             transition: opacity 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         #media-controls-transport button:hover {
             opacity: 1;
         }
 
-        #media-controls-transport button.play-pause {
-            font-size: 48px;
+        #media-controls-transport button svg {
+            width: 36px;
+            height: 36px;
+            filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+        }
+
+        #media-controls-transport button.play-pause svg {
+            width: 48px;
+            height: 48px;
         }
 
         /* Volume slider (bottom bar) */
         #media-controls-volume {
             position: absolute;
-            bottom: 20px;
+            bottom: 24px;
             left: 5%;
             width: 90%;
-            height: 70px;
+            height: 50px;
             z-index: 1002;
             display: none;
             align-items: center;
-            gap: 16px;
+            gap: 14px;
         }
 
         #media-controls-volume.active {
@@ -241,18 +251,25 @@
 
         #media-controls-volume .vol-icon {
             color: white;
-            font-size: 24px;
-            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
             flex-shrink: 0;
             user-select: none;
+            display: flex;
+            align-items: center;
+            opacity: 0.7;
+        }
+
+        #media-controls-volume .vol-icon svg {
+            width: 24px;
+            height: 24px;
+            filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
         }
 
         #volume-slider {
             -webkit-appearance: none;
             appearance: none;
             flex: 1;
-            height: 8px;
-            border-radius: 4px;
+            height: 6px;
+            border-radius: 3px;
             background: rgba(255, 255, 255, 0.25);
             outline: none;
             cursor: pointer;
@@ -261,8 +278,8 @@
         #volume-slider::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 28px;
-            height: 28px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
             background: white;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
@@ -270,8 +287,8 @@
         }
 
         #volume-slider::-moz-range-thumb {
-            width: 28px;
-            height: 28px;
+            width: 24px;
+            height: 24px;
             border: none;
             border-radius: 50%;
             background: white;
@@ -280,8 +297,8 @@
         }
 
         #volume-slider::-moz-range-track {
-            height: 8px;
-            border-radius: 4px;
+            height: 6px;
+            border-radius: 3px;
             background: rgba(255, 255, 255, 0.25);
         }
 
@@ -296,6 +313,16 @@
             text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 0, 0, 0.4);
             z-index: 1001;
             pointer-events: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #weather-info svg {
+            width: 32px;
+            height: 32px;
+            filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+            flex-shrink: 0;
         }
     </style>
 </head>
@@ -322,14 +349,25 @@
             </div>
         </div>
         <div id="media-controls-transport">
-            <button id="btn-prev" title="Previous">&#x23EE;&#xFE0F;</button>
-            <button id="btn-play-pause" class="play-pause" title="Play/Pause">&#x23EF;&#xFE0F;</button>
-            <button id="btn-next" title="Next">&#x23ED;&#xFE0F;</button>
+            <button id="btn-prev" title="Previous">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M9.195 18.44c1.25.714 2.805-.189 2.805-1.629v-2.34l6.945 3.968c1.25.715 2.805-.188 2.805-1.628V7.19c0-1.44-1.555-2.343-2.805-1.628L12 9.53v-2.34c0-1.44-1.555-2.343-2.805-1.628l-7.108 4.061c-1.26.72-1.26 2.536 0 3.256l7.108 4.061Z"/></svg>
+            </button>
+            <button id="btn-play-pause" class="play-pause" title="Play/Pause">
+                <svg id="icon-pause" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M6.75 5.25a.75.75 0 0 1 .75-.75H9a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H7.5a.75.75 0 0 1-.75-.75V5.25Zm7.5 0A.75.75 0 0 1 15 4.5h1.5a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H15a.75.75 0 0 1-.75-.75V5.25Z" clip-rule="evenodd"/></svg>
+                <svg id="icon-play" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path fill-rule="evenodd" d="M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z" clip-rule="evenodd"/></svg>
+            </button>
+            <button id="btn-next" title="Next">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M5.055 7.06C3.805 6.347 2.25 7.25 2.25 8.69v6.62c0 1.44 1.555 2.343 2.805 1.628L12 12.97v2.34c0 1.44 1.555 2.343 2.805 1.628l7.108-4.061c1.26-.72 1.26-2.536 0-3.256l-7.108-4.06C13.555 4.715 12 5.617 12 7.058v2.34L5.055 7.06Z"/></svg>
+            </button>
         </div>
         <div id="media-controls-volume">
-            <span class="vol-icon">&#x1F508;</span>
+            <span class="vol-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06Z"/></svg>
+            </span>
             <input type="range" id="volume-slider" min="0" max="100" value="50">
-            <span class="vol-icon">&#x1F50A;</span>
+            <span class="vol-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM18.584 5.106a.75.75 0 0 1 1.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 0 1-1.06-1.06 8.25 8.25 0 0 0 0-11.668.75.75 0 0 1 0-1.06Z"/><path d="M15.932 7.757a.75.75 0 0 1 1.061 0 6 6 0 0 1 0 8.486.75.75 0 0 1-1.06-1.061 4.5 4.5 0 0 0 0-6.364.75.75 0 0 1 0-1.06Z"/></svg>
+            </span>
         </div>
         <div id="weather-info"></div>
     </div>

@@ -446,6 +446,43 @@ def serve_photo(filename: str):
         return jsonify({"error": "Permission denied"}), 403
 
 
+@app.route('/api/demo/config', methods=['GET'])
+def demo_config():
+    """GET /api/demo/config - Return demo configuration for local UI testing."""
+    return jsonify({
+        **DEFAULT_CONFIG,
+        "home_assistant_url": "about:blank",
+        "idle_timeout_seconds": 1,
+        "slide_interval_seconds": 30,
+        "weather_entity": "weather.demo",
+        "media_player_entity": "media_player.demo",
+        "clock_position": "bottom-center"
+    })
+
+
+@app.route('/api/demo/weather', methods=['GET'])
+def demo_weather():
+    """GET /api/demo/weather - Return mock weather data."""
+    return jsonify({
+        'condition': 'cloudy',
+        'temperature': 2,
+        'temperature_unit': '°C'
+    })
+
+
+@app.route('/api/demo/media', methods=['GET'])
+def demo_media():
+    """GET /api/demo/media - Return mock media player data."""
+    return jsonify({
+        'state': 'playing',
+        'title': 'Undernoise',
+        'artist': 'Måns & Dotter',
+        'album': 'Undernoise',
+        'image_url': 'https://picsum.photos/seed/album/600/600',
+        'volume_level': 0.5
+    })
+
+
 @app.route('/', methods=['GET'])
 def serve_index():
     """GET / - Serve the main HTML page."""

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.2.0 (2026-03-10)
+
+### Features
+- **Demo mode** - Add `?demo` query parameter for local UI development and testing without a Home Assistant instance; serves mock config, weather, and media data
+
+### Improvements
+- **SVG icons** - Replaced all emoji icons (transport controls, volume, weather) with clean inline SVGs (Heroicons-style), eliminating rendering inconsistencies and the white background artifact on cloudy/overcast weather icons
+- **Full-screen fix** - Changed screensaver overlay from `position: absolute` to `position: fixed` with `inset: 0`, preventing dashboard bleed-through in media player mode
+- **Volume/clock layout** - Clock shifts up when media controls are active, and now-playing content is offset to prevent overlap with the volume slider and date
+
 ## 2.1.0 (2026-03-09)
 
 ### Features
