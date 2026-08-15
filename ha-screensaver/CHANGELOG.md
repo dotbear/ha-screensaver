@@ -12,6 +12,8 @@
 - `night_mode_brightness` - Clock brightness percentage at night (default: `15`, range 1-100)
 
 ### Improvements
+- **Startup loading screen** - The blank white page during startup is replaced with a loading screen that reports what it's doing ("Loading settings", "Loading photos", "Found N photos"). After 6 seconds of scanning it explains that photo dates and locations are being read and that the results are cached, so a slow first run doesn't look like a hang.
+- **Dashboard loads while photos scan** - The HA iframe used to be given its URL only *after* the photo scan finished, so a first run with GPS photos (reverse-geocoded at 1 request/sec) left the screen blank the whole time. The iframe now starts loading as soon as the config is read, concurrently with the scan.
 - **Screensaver starts without photos at night** - Night mode needs no photos, so an empty photo folder no longer prevents the clock from showing. When there are no photos during the day, the idle timer now retries instead of giving up, so night mode can still take over at its start time.
 - **Demo mode night preview** - `?demo&night=1` forces the night window open so the look can be checked at any hour
 

@@ -47,6 +47,10 @@ There are no automated tests, linter, or formatter configured.
 
 `/api/media` proxies the configured `media_player` entity state from HA. Returns track title, artist, album, album art URL, volume level, and playback state. Polled every 10 seconds while screensaver is active. Album art from HA's internal proxy is served through `/api/media/image` which handles Supervisor auth. Control endpoints (`/api/media/play_pause`, `/api/media/next`, `/api/media/previous`, `/api/media/volume`) call HA's `media_player` service API.
 
+### Startup sequence
+
+`init()` shows the `#loading` overlay (present in `index.html` so it paints before JS runs) and walks through: load config → set the iframe `src` → scan photos → wait for the iframe → hide the overlay. The iframe `src` is set *before* the photo scan deliberately: `/api/photos` reverse-geocodes new GPS coordinates at 1 request/sec, so a first run can take minutes and the dashboard should not wait on it. Every exit path hides the overlay (`try/finally`) — never leave it up, it covers the whole screen at `z-index: 2000`.
+
 ### Frontend state machine
 
 `ScreensaverApp` has four modes:

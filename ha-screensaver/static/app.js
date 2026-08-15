@@ -16,6 +16,9 @@ class ScreensaverApp {
     this.isScreensaverActive = false;
     this.isMediaMode = false;
     this.isNightActive = false;
+    this.iframeReady = null;
+    this.iframeLoaded = false;
+    this.loadingHintTimer = null;
     this.demoMode = new URLSearchParams(window.location.search).has('demo');
 
     this.init();
@@ -26,15 +29,86 @@ class ScreensaverApp {
   }
 
   async init() {
-    await this.loadConfig();
-    await this.loadPhotos();
-    this.setupEventListeners();
-    this.setupMediaControls();
-    this.setupIdleDetection();
+    try {
+      this.setLoadingStatus('Loading settings…');
+      await this.loadConfig();
 
-    // Set the iframe source to Home Assistant URL
-    const iframe = document.getElementById('ha-iframe');
-    iframe.src = this.config.home_assistant_url;
+      // Start the dashboard loading now -- it only needs the config, and the
+      // photo scan below can take a long time on first run
+      const iframe = document.getElementById('ha-iframe');
+      this.iframeReady = new Promise(resolve => {
+        iframe.addEventListener('load', () => {
+          this.iframeLoaded = true;
+          resolve();
+        }, { once: true });
+      });
+      iframe.src = this.config.home_assistant_url;
+
+      this.setLoadingStatus('Loading photos…');
+      // Reverse-geocoding new photos is rate-limited to 1/sec, so say so
+      // rather than looking stuck
+      this.loadingHintTimer = setTimeout(() => {
+        this.setLoadingHint(
+          'Reading photo dates and locations. This can take a while the first ' +
+          'time, but the results are cached for next time.'
+        );
+      }, 6000);
+
+      await this.loadPhotos();
+
+      this.setLoadingStatus(this.describePhotoCount());
+      this.setLoadingHint(this.photos.length === 0
+        ? 'Add photos to the configured folder to start the slideshow.'
+        : '');
+
+      this.setupEventListeners();
+      this.setupMediaControls();
+      this.setupIdleDetection();
+
+      // Usually already loaded by now; the cap keeps an unreachable
+      // dashboard from pinning the loading screen open
+      await this.waitForIframe(15000);
+    } catch (error) {
+      console.error('Error during startup:', error);
+      this.setLoadingStatus('Startup failed');
+      this.setLoadingHint(error && error.message ? error.message : '');
+    } finally {
+      clearTimeout(this.loadingHintTimer);
+      this.hideLoading();
+    }
+  }
+
+  describePhotoCount() {
+    if (this.photos.length === 0) return 'No photos found';
+    if (this.photos.length === 1) return 'Found 1 photo';
+    return `Found ${this.photos.length} photos`;
+  }
+
+  setLoadingStatus(text) {
+    const el = document.getElementById('loading-text');
+    if (el) el.textContent = text;
+  }
+
+  setLoadingHint(text) {
+    const el = document.getElementById('loading-hint');
+    if (el) el.textContent = text;
+  }
+
+  /** Resolve once the HA iframe has loaded, or after timeoutMs, whichever first. */
+  waitForIframe(timeoutMs) {
+    if (!this.iframeReady || this.iframeLoaded) return Promise.resolve();
+    this.setLoadingStatus('Loading dashboard…');
+    return Promise.race([
+      this.iframeReady,
+      new Promise(resolve => setTimeout(resolve, timeoutMs))
+    ]);
+  }
+
+  hideLoading() {
+    const el = document.getElementById('loading');
+    if (!el) return;
+    // Brief pause so the final message is actually readable
+    setTimeout(() => el.classList.add('hidden'), 600);
   }
 
   async loadConfig() {
