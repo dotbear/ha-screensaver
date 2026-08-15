@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.3.0 (2026-08-15)
+
+### Features
+- **Night mode** - Between configurable hours (21:00-05:00 by default) the screensaver shows nothing but a very dim greyscale clock on a black screen. Photos, weather, photo info, and the now playing view are all hidden, and the slideshow and HA polling pause. Music keeps playing — it just isn't displayed. Crossing either boundary while the screensaver is running switches modes in place, with a 2 second fade.
+
+### New Configuration
+- `night_mode_enabled` - Turn night mode on or off (default: `true`)
+- `night_mode_start` - When night mode begins, `HH:MM` 24-hour (default: `"21:00"`)
+- `night_mode_end` - When night mode ends, `HH:MM` 24-hour; windows crossing midnight are supported (default: `"05:00"`)
+- `night_mode_brightness` - Clock brightness percentage at night (default: `15`, range 1-100)
+
+### Improvements
+- **Screensaver starts without photos at night** - Night mode needs no photos, so an empty photo folder no longer prevents the clock from showing. When there are no photos during the day, the idle timer now retries instead of giving up, so night mode can still take over at its start time.
+- **Demo mode night preview** - `?demo&night=1` forces the night window open so the look can be checked at any hour
+
 ## 2.2.0 (2026-03-10)
 
 ### Features

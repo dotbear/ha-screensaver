@@ -49,10 +49,13 @@ There are no automated tests, linter, or formatter configured.
 
 ### Frontend state machine
 
-`ScreensaverApp` has three modes:
+`ScreensaverApp` has four modes:
 - **Dashboard mode**: HA iframe visible, idle timer counting down
 - **Photo slideshow mode**: Random photo slides with clock, photo info (top-left), and weather (top-right) overlays. Tap anywhere to exit, tap left 10% to go back one photo.
 - **Now playing mode**: Activated when the configured media player is playing/paused. Shows album art (blurred background + centered sharp art), track info, transport controls (top center: ⏮ ⏯ ⏭), and volume slider (bottom, 90% width). Photo slideshow pauses; resumes when playback stops.
+- **Night mode**: Active inside the configured night window (`night_mode_start`/`night_mode_end`, 21:00-05:00 by default). Everything except the clock is hidden via the `night` class on `#slideshow`, and the clock renders greyscale at `night_mode_brightness` percent opacity. Overrides now playing mode. Requires no photos, so the screensaver still starts with an empty photo folder.
+
+Night mode is evaluated in the clock tick, so crossing either boundary switches modes in place while the screensaver runs. `setNightMode()` is the single entry point and no-ops when the state is unchanged. `isNightTime()` handles windows that wrap past midnight; a zero-length window (start == end) disables it. Weather and media polling short-circuit on `isNightActive`.
 
 Clock text color adapts to image brightness by sampling the bottom-center region via canvas. In media mode, clock is forced to white (blurred background is always dark).
 

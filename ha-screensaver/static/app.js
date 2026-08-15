@@ -15,6 +15,7 @@ class ScreensaverApp {
     this.lastIframeRefresh = Date.now();
     this.isScreensaverActive = false;
     this.isMediaMode = false;
+    this.isNightActive = false;
     this.demoMode = new URLSearchParams(window.location.search).has('demo');
 
     this.init();
@@ -53,7 +54,11 @@ class ScreensaverApp {
         home_assistant_url: 'http://homeassistant.local:8123',
         photos_folder: './photos',
         idle_timeout_seconds: 60,
-        slide_interval_seconds: 5
+        slide_interval_seconds: 5,
+        night_mode_enabled: true,
+        night_mode_start: '21:00',
+        night_mode_end: '05:00',
+        night_mode_brightness: 15
       };
     }
   }
@@ -179,13 +184,94 @@ class ScreensaverApp {
     }, this.config.idle_timeout_seconds * 1000);
   }
 
-  startScreensaver() {
-    if (this.photos.length === 0) {
-      console.log('No photos available for slideshow');
+  /**
+   * Parse an "HH:MM" string into minutes since midnight.
+   * Returns the fallback for anything unparseable.
+   */
+  parseClockTime(value, fallbackMinutes) {
+    const match = /^(\d{1,2}):(\d{2})$/.exec(String(value == null ? '' : value).trim());
+    if (!match) return fallbackMinutes;
+    const hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10);
+    if (hours > 23 || minutes > 59) return fallbackMinutes;
+    return hours * 60 + minutes;
+  }
+
+  /** True when the current time falls inside the configured night window. */
+  isNightTime(now) {
+    if (this.config.night_mode_enabled === false) return false;
+
+    const start = this.parseClockTime(this.config.night_mode_start, 21 * 60);
+    const end = this.parseClockTime(this.config.night_mode_end, 5 * 60);
+    if (start === end) return false; // zero-length window disables night mode
+
+    const then = now || new Date();
+    const minutes = then.getHours() * 60 + then.getMinutes();
+
+    // Windows that wrap past midnight (e.g. 21:00 -> 05:00) invert the test
+    return start < end
+      ? (minutes >= start && minutes < end)
+      : (minutes >= start || minutes < end);
+  }
+
+  /**
+   * Night mode hides everything except the clock, which is rendered
+   * greyscale at the configured brightness.
+   */
+  setNightMode(active) {
+    if (active === this.isNightActive) return;
+    this.isNightActive = active;
+    console.log(active ? 'Entering night mode' : 'Leaving night mode');
+
+    const slideshow = document.getElementById('slideshow');
+    const clock = document.getElementById('screensaver-clock');
+    slideshow.classList.toggle('night', active);
+
+    if (active) {
+      // exitMediaMode() restarts the slide timer, so stop it afterwards
+      this.exitMediaMode();
+      clearInterval(this.slideInterval);
+      this.slideInterval = null;
+
+      const brightness = Number(this.config.night_mode_brightness);
+      const level = Number.isFinite(brightness) ? Math.min(100, Math.max(1, brightness)) : 15;
+      clock.style.opacity = level / 100;
+      this.setClockColor(true);
       return;
     }
 
-    console.log('Starting screensaver');
+    clock.style.opacity = '';
+    if (!this.isScreensaverActive) return;
+
+    // Restore the normal screensaver
+    this.loadWeather();
+    this.loadMedia();
+
+    if (!this.slideInterval && this.photos.length > 0) {
+      this.slideInterval = setInterval(() => {
+        this.nextSlide();
+      }, this.config.slide_interval_seconds * 1000);
+    }
+
+    const activeSlide = document.querySelector('.slide.active');
+    if (activeSlide) this.updateClockColor(activeSlide);
+  }
+
+  startScreensaver() {
+    const nightMode = this.isNightTime();
+
+    // Night mode needs no photos -- it only shows the clock
+    if (this.photos.length === 0 && !nightMode) {
+      console.log('No photos available for slideshow');
+      // Retry so night mode can still take over when its start time arrives
+      clearTimeout(this.idleTimer);
+      this.idleTimer = setTimeout(() => {
+        this.startScreensaver();
+      }, this.config.idle_timeout_seconds * 1000);
+      return;
+    }
+
+    console.log(nightMode ? 'Starting screensaver (night mode)' : 'Starting screensaver');
     this.isScreensaverActive = true;
     clearInterval(this.slideInterval);
     clearInterval(this.clockInterval);
@@ -227,6 +313,13 @@ class ScreensaverApp {
     this.applyClockPosition();
     this.updatePhotoInfo(startIndex);
 
+    // Reset night state, then apply it fresh for the current time. This runs
+    // before polling starts so the weather/media pollers see the right state.
+    this.isNightActive = false;
+    slideshow.classList.remove('night');
+    document.getElementById('screensaver-clock').style.opacity = '';
+    this.setNightMode(nightMode);
+
     // Load weather data and refresh every 60 seconds
     this.loadWeather();
     clearInterval(this.weatherInterval);
@@ -245,10 +338,12 @@ class ScreensaverApp {
     // Start the clock
     this.startClock();
 
-    // Change slide based on configured interval
-    this.slideInterval = setInterval(() => {
-      this.nextSlide();
-    }, this.config.slide_interval_seconds * 1000);
+    // Change slide based on configured interval (no slideshow at night)
+    if (!this.isNightActive) {
+      this.slideInterval = setInterval(() => {
+        this.nextSlide();
+      }, this.config.slide_interval_seconds * 1000);
+    }
   }
 
   nextSlide() {
@@ -313,6 +408,11 @@ class ScreensaverApp {
       const month = now.toLocaleDateString('en-US', { month: 'long' });
       const day = now.getDate();
       dateElement.textContent = `${weekday}, ${month} ${day}`;
+
+      // Cross into/out of the night window as the clock passes its boundaries
+      if (this.isScreensaverActive) {
+        this.setNightMode(this.isNightTime(now));
+      }
 
       // Reload HA iframe hourly to prevent browser memory leaks
       if (now.getTime() - this.lastIframeRefresh >= 3600000) {
@@ -454,7 +554,7 @@ class ScreensaverApp {
   }
 
   async loadWeather() {
-    if (!this.config.weather_entity) return;
+    if (!this.config.weather_entity || this.isNightActive) return;
     try {
       const response = await fetch(this.apiUrl('weather'));
       if (!response.ok) return;
@@ -500,7 +600,7 @@ class ScreensaverApp {
   }
 
   async loadMedia() {
-    if (!this.config.media_player_entity) return;
+    if (!this.config.media_player_entity || this.isNightActive) return;
     try {
       const response = await fetch(this.apiUrl('media'));
       if (!response.ok) return;
@@ -529,7 +629,7 @@ class ScreensaverApp {
   enterMediaMode() {
     const np = document.getElementById('now-playing');
     const photoInfo = document.getElementById('photo-info');
-    if (!np || !this.media) return;
+    if (!np || !this.media || this.isNightActive) return;
 
     // Pause photo slideshow when entering media mode
     if (!this.isMediaMode) {
@@ -631,6 +731,7 @@ class ScreensaverApp {
     clearInterval(this.mediaInterval);
     this.mediaInterval = null;
     this.exitMediaMode();
+    this.setNightMode(false);
 
     // Restart idle detection
     this.setupIdleDetection();

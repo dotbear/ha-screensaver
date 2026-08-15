@@ -47,7 +47,11 @@ DEFAULT_CONFIG = {
     "clock_position": "bottom-center",
     "weather_entity": "",
     "media_player_entity": "",
-    "media_player_sources": ""
+    "media_player_sources": "",
+    "night_mode_enabled": True,
+    "night_mode_start": "21:00",
+    "night_mode_end": "05:00",
+    "night_mode_brightness": 15
 }
 
 # ============================================================================
@@ -449,7 +453,7 @@ def serve_photo(filename: str):
 @app.route('/api/demo/config', methods=['GET'])
 def demo_config():
     """GET /api/demo/config - Return demo configuration for local UI testing."""
-    return jsonify({
+    config = {
         **DEFAULT_CONFIG,
         "home_assistant_url": "about:blank",
         "idle_timeout_seconds": 1,
@@ -457,7 +461,12 @@ def demo_config():
         "weather_entity": "weather.demo",
         "media_player_entity": "media_player.demo",
         "clock_position": "bottom-center"
-    })
+    }
+    # ?night=1 forces the night window open so it can be previewed at any hour
+    if request.args.get('night') == '1':
+        config["night_mode_start"] = "00:00"
+        config["night_mode_end"] = "23:59"
+    return jsonify(config)
 
 
 @app.route('/api/demo/weather', methods=['GET'])

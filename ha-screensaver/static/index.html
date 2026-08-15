@@ -120,6 +120,24 @@
             text-shadow: 0 1px 4px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.4);
         }
 
+        /* Night mode: black screen with nothing but a dim greyscale clock */
+        #slideshow.night .slide,
+        #slideshow.night #photo-info,
+        #slideshow.night #weather-info,
+        #slideshow.night #now-playing,
+        #slideshow.night #media-controls-transport,
+        #slideshow.night #media-controls-volume {
+            display: none !important;
+        }
+
+        #slideshow.night #screensaver-clock {
+            /* Opacity is set from night_mode_brightness in app.js */
+            color: #fff;
+            text-shadow: none;
+            filter: grayscale(1);
+            transition: opacity 2s ease, color 2s ease;
+        }
+
         /* Now Playing overlay */
         #now-playing {
             position: absolute;

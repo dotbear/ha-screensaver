@@ -8,6 +8,10 @@ CLOCK_POSITION=$(bashio::config 'clock_position')
 WEATHER_ENTITY=$(bashio::config 'weather_entity')
 MEDIA_PLAYER_ENTITY=$(bashio::config 'media_player_entity')
 MEDIA_PLAYER_SOURCES=$(bashio::config 'media_player_sources')
+NIGHT_MODE_ENABLED=$(bashio::config 'night_mode_enabled')
+NIGHT_MODE_START=$(bashio::config 'night_mode_start')
+NIGHT_MODE_END=$(bashio::config 'night_mode_end')
+NIGHT_MODE_BRIGHTNESS=$(bashio::config 'night_mode_brightness')
 
 # Log startup information
 bashio::log.info "Starting Home Assistant Screensaver..."
@@ -18,6 +22,7 @@ bashio::log.info "Weather entity: ${WEATHER_ENTITY}"
 bashio::log.info "Media player entity: ${MEDIA_PLAYER_ENTITY}"
 bashio::log.info "Media player sources: ${MEDIA_PLAYER_SOURCES}"
 bashio::log.info "Photos source: ${PHOTOS_SOURCE}"
+bashio::log.info "Night mode: ${NIGHT_MODE_ENABLED} (${NIGHT_MODE_START} - ${NIGHT_MODE_END}, ${NIGHT_MODE_BRIGHTNESS}% brightness)"
 
 # Determine photos folder based on configuration
 case "${PHOTOS_SOURCE}" in
@@ -48,7 +53,11 @@ cat > /app/config.json <<EOF
   "clock_position": "${CLOCK_POSITION}",
   "weather_entity": "${WEATHER_ENTITY}",
   "media_player_entity": "${MEDIA_PLAYER_ENTITY}",
-  "media_player_sources": "${MEDIA_PLAYER_SOURCES}"
+  "media_player_sources": "${MEDIA_PLAYER_SOURCES}",
+  "night_mode_enabled": ${NIGHT_MODE_ENABLED},
+  "night_mode_start": "${NIGHT_MODE_START}",
+  "night_mode_end": "${NIGHT_MODE_END}",
+  "night_mode_brightness": ${NIGHT_MODE_BRIGHTNESS}
 }
 EOF
 

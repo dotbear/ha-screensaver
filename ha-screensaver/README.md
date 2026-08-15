@@ -17,6 +17,7 @@ Perfect for wall-mounted tablets or kiosk displays!
 - Supports JPG, PNG, GIF, and WebP images
 - EXIF metadata display (date and location)
 - Weather overlay integration
+- Night mode - dims to nothing but a faint greyscale clock during set hours
 - Lightweight and efficient
 
 ## Installation
@@ -34,6 +35,10 @@ slide_interval_seconds: 5
 photos_source: "media"
 clock_position: "bottom-center"
 weather_entity: ""
+night_mode_enabled: true
+night_mode_start: "21:00"
+night_mode_end: "05:00"
+night_mode_brightness: 15
 ```
 
 ### Option: `idle_timeout_seconds`
@@ -74,6 +79,37 @@ Default: `bottom-center`
 The Home Assistant weather entity to display on the slideshow (e.g., `weather.home`). Leave empty to disable.
 
 Default: `""` (disabled)
+
+### Option: `night_mode_enabled`
+
+Enable night mode. During the configured hours the screensaver shows nothing but
+a very dim greyscale clock on a black screen — no photos, no weather, no photo
+info, and no now playing view (music keeps playing, it just isn't displayed).
+
+Set to `false` to keep the normal slideshow running around the clock.
+
+Default: `true`
+
+### Option: `night_mode_start`
+
+Time of day night mode begins, as `HH:MM` in 24-hour format.
+
+Default: `"21:00"`
+
+### Option: `night_mode_end`
+
+Time of day night mode ends, as `HH:MM` in 24-hour format. Windows that cross
+midnight are supported — the default `21:00` to `05:00` runs overnight.
+
+Setting this to the same value as `night_mode_start` disables night mode.
+
+Default: `"05:00"`
+
+### Option: `night_mode_brightness`
+
+How bright the night clock is, as a percentage. Lower is dimmer.
+
+Default: `15` (Range: 1-100)
 
 ## How to Add Photos
 
