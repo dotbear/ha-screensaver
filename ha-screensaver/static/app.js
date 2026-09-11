@@ -1,3 +1,9 @@
+// Motion photos ("Live" on iOS, "Motion" on Android): how long a clip may run
+// before the still is put back, and how long the crossfade back to it takes.
+// MOTION_FADE_MS must match the .slide video.motion transition in index.html.
+const MOTION_MAX_PLAY_MS = 12000;
+const MOTION_FADE_MS = 450;
+
 class ScreensaverApp {
   constructor() {
     this.config = null;
@@ -5,6 +11,8 @@ class ScreensaverApp {
     this.currentSlideIndex = 0;
     this.slideHistory = [];
     this.photoExif = {};
+    this.photoMotion = {};
+    this.motionTimer = null;
     this.weather = null;
     this.media = null;
     this.idleTimer = null;
@@ -306,6 +314,7 @@ class ScreensaverApp {
       this.exitMediaMode();
       clearInterval(this.slideInterval);
       this.slideInterval = null;
+      this.stopMotion();
 
       const brightness = Number(this.config.night_mode_brightness);
       const level = Number.isFinite(brightness) ? Math.min(100, Math.max(1, brightness)) : 15;
@@ -329,6 +338,7 @@ class ScreensaverApp {
 
     const activeSlide = document.querySelector('.slide.active');
     if (activeSlide) this.updateClockColor(activeSlide);
+    this.playMotion(this.currentSlideIndex);
   }
 
   startScreensaver() {
@@ -364,8 +374,9 @@ class ScreensaverApp {
     // Pick a random starting slide
     const startIndex = Math.floor(Math.random() * this.photos.length);
 
-    // Create slides and store EXIF data per index
+    // Create slides and store EXIF / motion data per index
     this.photoExif = {};
+    this.photoMotion = {};
     this.photos.forEach((photo, index) => {
       const slide = document.createElement('div');
       slide.className = 'slide';
@@ -378,6 +389,7 @@ class ScreensaverApp {
       slide.appendChild(img);
       slideshow.appendChild(slide);
       this.photoExif[index] = photo.exif || {};
+      this.photoMotion[index] = photo.motion_url || null;
     });
 
     this.currentSlideIndex = startIndex;
@@ -417,7 +429,81 @@ class ScreensaverApp {
       this.slideInterval = setInterval(() => {
         this.nextSlide();
       }, this.config.slide_interval_seconds * 1000);
+      this.playMotion(this.currentSlideIndex);
     }
+  }
+
+  /**
+   * Play a photo's motion clip once, then fade back to the still. Photos
+   * without motion, and every mode that isn't the slideshow, are no-ops.
+   *
+   * The video element is built here and thrown away when the clip finishes,
+   * so a display left running for weeks never holds more than one decoder.
+   */
+  playMotion(slideIndex) {
+    this.stopMotion();
+
+    const url = this.photoMotion[slideIndex];
+    if (!url) return;
+    if (this.config.motion_photos_enabled === false) return;
+    if (!this.isScreensaverActive || this.isNightActive || this.isMediaMode) return;
+
+    const slide = document.querySelectorAll('.slide')[slideIndex];
+    if (!slide) return;
+
+    const video = document.createElement('video');
+    video.className = 'motion';
+    video.muted = true;
+    video.defaultMuted = true;
+    video.playsInline = true;
+    // Attributes as well as properties: some kiosk browsers only honour these
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.preload = 'auto';
+    video.onended = () => this.fadeOutMotion(video);
+    // A clip the browser can't decode just leaves the still photo up
+    video.onerror = () => this.removeMotion(video);
+
+    // A clip that stalls still has to hand the still photo back
+    this.motionTimer = setTimeout(() => this.fadeOutMotion(video), MOTION_MAX_PLAY_MS);
+
+    // Attached before the source is set, so every event lands on a live element
+    slide.appendChild(video);
+    video.src = url;
+
+    const started = video.play();
+    if (started && started.catch) {
+      started.catch(() => this.removeMotion(video));
+    }
+  }
+
+  /** Cross-fade a finished clip out, revealing the still underneath. */
+  fadeOutMotion(video) {
+    clearTimeout(this.motionTimer);
+    this.motionTimer = null;
+    if (!video || !video.isConnected) return;
+    video.classList.add('done');
+    setTimeout(() => this.removeMotion(video), MOTION_FADE_MS);
+  }
+
+  removeMotion(video) {
+    if (!video || !video.isConnected) return;
+    // Clearing the source fires one more error event; drop the handlers first
+    video.onended = null;
+    video.onerror = null;
+    video.pause();
+    // Release the decoder and the buffered clip with it
+    video.removeAttribute('src');
+    video.load();
+    video.remove();
+  }
+
+  /** Tear down any clip that is playing or fading out. */
+  stopMotion() {
+    clearTimeout(this.motionTimer);
+    this.motionTimer = null;
+    document.querySelectorAll('.slide video.motion')
+      .forEach(video => this.removeMotion(video));
   }
 
   nextSlide() {
@@ -443,6 +529,7 @@ class ScreensaverApp {
 
     this.updateClockColor(slides[this.currentSlideIndex]);
     this.updatePhotoInfo(this.currentSlideIndex);
+    this.playMotion(this.currentSlideIndex);
   }
 
   previousSlide() {
@@ -455,6 +542,7 @@ class ScreensaverApp {
 
     this.updateClockColor(slides[this.currentSlideIndex]);
     this.updatePhotoInfo(this.currentSlideIndex);
+    this.playMotion(this.currentSlideIndex);
   }
 
   resetSlideTimer() {
@@ -710,6 +798,7 @@ class ScreensaverApp {
       clearInterval(this.slideInterval);
       this.slideInterval = null;
       this.isMediaMode = true;
+      this.stopMotion();
     }
 
     // Update album art (only if URL changed)
@@ -783,6 +872,7 @@ class ScreensaverApp {
       // Update clock color for current photo slide
       const activeSlide = document.querySelector('.slide.active');
       if (activeSlide) this.updateClockColor(activeSlide);
+      this.playMotion(this.currentSlideIndex);
     }
   }
 
@@ -804,6 +894,7 @@ class ScreensaverApp {
 
     clearInterval(this.mediaInterval);
     this.mediaInterval = null;
+    this.stopMotion();
     this.exitMediaMode();
     this.setNightMode(false);
 

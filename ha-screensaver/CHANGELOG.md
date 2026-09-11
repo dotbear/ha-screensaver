@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.4.0 (2026-09-11)
+
+### Features
+- **HEIC/HEIF photos** - iPhone photos can be dropped into the photo folder as they are. No browser renders HEIC, so the add-on decodes them to JPEG with `heif-convert` when the browser asks for the image, and caches the result. EXIF survives the conversion, so dates and locations still show — they appear from the next scan, since the first one lists the file without decoding it.
+- **Live Photos and Motion Photos** - A photo with motion plays its clip once each time it comes up in the slideshow, then cross-fades back to the still. iOS Live Photos are found by their sidecar (`IMG_0001.HEIC` next to `IMG_0001.MOV`); Android Motion Photos have their clip appended inside the image, found via Google's XMP marker or by locating the appended MP4. Clips are HEVC more often than not, so they are re-encoded to H.264 on first use and cached; anything that still won't play just leaves the still up.
+
+### New Configuration
+- `motion_photos_enabled` - Play the motion in Live Photos / Motion Photos (default: `true`)
+
+### Notes
+- The add-on image now includes `libheif-tools` (HEIC decoding) and `ffmpeg` (clip re-encoding)
+- Decoded stills and motion clips are cached under `/app/cache`, capped at 2 GB with the oldest files dropped first
+
 ## 2.3.0 (2026-08-15)
 
 ### Features
