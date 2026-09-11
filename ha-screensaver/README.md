@@ -14,7 +14,8 @@ Perfect for wall-mounted tablets or kiosk displays!
 - Automatic idle detection with configurable timeout
 - Photo slideshow from your media library
 - Touch/click to exit slideshow
-- Supports JPG, PNG, GIF, and WebP images
+- Supports JPG, PNG, GIF, WebP, and HEIC/HEIF (iPhone) images
+- Live Photos and Motion Photos play their motion once, then hold on the still
 - EXIF metadata display (date and location)
 - Weather overlay integration
 - Night mode - dims to nothing but a faint greyscale clock during set hours
@@ -39,6 +40,7 @@ night_mode_enabled: true
 night_mode_start: "21:00"
 night_mode_end: "05:00"
 night_mode_brightness: 15
+motion_photos_enabled: true
 ```
 
 ### Option: `idle_timeout_seconds`
@@ -110,6 +112,37 @@ Default: `"05:00"`
 How bright the night clock is, as a percentage. Lower is dimmer.
 
 Default: `15` (Range: 1-100)
+
+### Option: `motion_photos_enabled`
+
+Whether Live Photos (iOS) and Motion Photos (Android) play their motion when
+they come up in the slideshow. Turn this off to show every photo as a plain
+still.
+
+Default: `true`
+
+## Photo Formats
+
+JPG, PNG, GIF, WebP, and HEIC/HEIF are all supported.
+
+HEIC is what an iPhone shoots by default, and no browser renders it, so the
+add-on decodes those files to JPEG itself — copy them over as they are, no
+converting first. The decoded copy is cached, so each photo is converted only
+once, and its date and location appear from the next time the page loads.
+
+## Live Photos and Motion Photos
+
+A Live Photo is two files, `IMG_0001.HEIC` and `IMG_0001.MOV`. Copy **both**
+into the photo folder, keeping their names, and the screensaver plays the
+motion once each time that photo comes up, then fades back to the still. The
+`.MOV` is never shown as a photo of its own.
+
+Android Motion Photos keep their clip inside the image file, so they need
+nothing extra.
+
+Live Photos are usually HEVC, which most non-Apple browsers won't play, so the
+add-on re-encodes those clips to H.264 the first time they are shown. If a clip
+still can't be played, the photo simply stays still.
 
 ## How to Add Photos
 

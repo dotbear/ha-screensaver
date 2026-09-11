@@ -37,7 +37,37 @@ There are no automated tests, linter, or formatter configured.
 1. `run.sh` maps `photos_source` option → filesystem path (`/media`, `/share`, or `/app/photos`)
 2. `/api/photos` scans that directory (non-recursive, single level only), extracts EXIF via Pillow
 3. GPS coordinates are reverse-geocoded via Nominatim (rate-limited 1 req/sec, cached to `/app/geocache.json`)
-4. Frontend receives `[{url, exif: {date, location}}]`, creates DOM slides, picks random order
+4. Frontend receives `[{url, exif: {date, location}, motion_url?}]`, creates DOM slides, picks random order
+
+### Data flow: HEIC/HEIF
+
+No browser renders HEIC, so `/photos/<name>.heic` decodes to JPEG via `heif-convert`
+(`libheif-tools`) and serves the cached result. The scan deliberately does **not**
+decode — it calls `heif_jpeg(decode=False)` and only reads EXIF from an already-decoded
+copy, so a folder of iPhone photos doesn't hold the loading screen open for minutes.
+The consequence is that a HEIC photo's date and location appear from the *second*
+scan onwards. `heif-convert` preserves the EXIF block, so the decoded JPEG is what
+`extract_exif` is pointed at. A HEIF file with a motion clip appended has to be
+trimmed to its still before decoding, or libheif rejects the whole file.
+
+### Data flow: Motion photos
+
+Two formats, both handled in `app.py`:
+- **Sidecar** (iOS Live Photo): `IMG_0001.HEIC` next to `IMG_0001.MOV`, matched by stem
+- **Embedded** (Android Motion Photo): an MP4 appended to the still, located from
+  Google's XMP marker (`MicroVideoOffset` / `Container:Directory`) or by finding the
+  appended `ftyp` box and walking the box chain to EOF
+
+The scan only records *whether* a photo has motion; `/api/motion/<name>` does the work
+on first request and caches the result. Clips are usually HEVC, which most non-Apple
+browsers refuse, so ffmpeg re-encodes those to H.264 (H.264 sources are remuxed with
+`-c:v copy`). Embedded-clip detection reads the file, so results are cached per file
+version in `/app/motioncache.json`; the cheap gates are a JPEG's `FFD9` end marker and
+a HEIF's box chain, both of which rule out an appended clip without reading the file.
+
+Derived files live in `/app/cache` under content-hash names, capped by
+`CACHE_MAX_BYTES` with the oldest evicted first. Nothing is ever written back into the
+user's photo folder.
 
 ### Data flow: Weather
 
@@ -57,6 +87,11 @@ There are no automated tests, linter, or formatter configured.
 - **Dashboard mode**: HA iframe visible, idle timer counting down
 - **Photo slideshow mode**: Random photo slides with clock, photo info (top-left), and weather (top-right) overlays. Tap anywhere to exit, tap left 10% to go back one photo.
 - **Now playing mode**: Activated when the configured media player is playing/paused. Shows album art (blurred background + centered sharp art), track info, transport controls (top center: ⏮ ⏯ ⏭), and volume slider (bottom, 90% width). Photo slideshow pauses; resumes when playback stops.
+- **Motion playback**: Not a mode — a photo with a `motion_url` plays its clip over
+  the still each time it becomes the active slide, then cross-fades back. The `<video>`
+  is built in `playMotion()` and destroyed in `removeMotion()` so a display left running
+  for weeks never holds more than one decoder. Night mode, now playing mode, and leaving
+  the screensaver all call `stopMotion()`.
 - **Night mode**: Active inside the configured night window (`night_mode_start`/`night_mode_end`, 21:00-05:00 by default). Everything except the clock is hidden via the `night` class on `#slideshow`, and the clock renders greyscale at `night_mode_brightness` percent opacity. Overrides now playing mode. Requires no photos, so the screensaver still starts with an empty photo folder.
 
 Night mode is evaluated in the clock tick, so crossing either boundary switches modes in place while the screensaver runs. `setNightMode()` is the single entry point and no-ops when the state is unchanged. `isNightTime()` handles windows that wrap past midnight; a zero-length window (start == end) disables it. Weather and media polling short-circuit on `isNightActive`.
@@ -77,6 +112,9 @@ The HA frontend leaks memory when left open for extended periods (a known commun
 - **Photo list is not cached** — `/api/photos` rescans on every request so new photos appear immediately
 - **Gunicorn in production** — `run.sh` starts Gunicorn (2 workers, 4 threads); `app.py` `__main__` is for local dev only
 - **`/api/media/image` only proxies `/api/` paths** — this prevents it being used as an open proxy
+- **`resolve_photo` guards the paths `send_from_directory` can't** — HEIC decoding and motion clips need the source path before serving, so they go through `safe_join` plus an extension whitelist; the response itself is still served with `send_from_directory` from the cache directory
+- **Photo scanning must stay cheap** — the scan runs behind the loading overlay on every page load, so anything that reads whole files (HEIC decoding, embedded-clip detection) is either deferred to the serving path or cached to disk
+- **External decoders are optional at runtime** — missing `heif-convert` skips HEIC files, missing `ffmpeg` serves clips untranscoded; neither should break the scan
 
 ## Adding a Configuration Option
 

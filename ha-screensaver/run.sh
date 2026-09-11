@@ -12,6 +12,7 @@ NIGHT_MODE_ENABLED=$(bashio::config 'night_mode_enabled')
 NIGHT_MODE_START=$(bashio::config 'night_mode_start')
 NIGHT_MODE_END=$(bashio::config 'night_mode_end')
 NIGHT_MODE_BRIGHTNESS=$(bashio::config 'night_mode_brightness')
+MOTION_PHOTOS_ENABLED=$(bashio::config 'motion_photos_enabled')
 
 # Log startup information
 bashio::log.info "Starting Home Assistant Screensaver..."
@@ -23,6 +24,7 @@ bashio::log.info "Media player entity: ${MEDIA_PLAYER_ENTITY}"
 bashio::log.info "Media player sources: ${MEDIA_PLAYER_SOURCES}"
 bashio::log.info "Photos source: ${PHOTOS_SOURCE}"
 bashio::log.info "Night mode: ${NIGHT_MODE_ENABLED} (${NIGHT_MODE_START} - ${NIGHT_MODE_END}, ${NIGHT_MODE_BRIGHTNESS}% brightness)"
+bashio::log.info "Motion photos: ${MOTION_PHOTOS_ENABLED}"
 
 # Determine photos folder based on configuration
 case "${PHOTOS_SOURCE}" in
@@ -57,7 +59,8 @@ cat > /app/config.json <<EOF
   "night_mode_enabled": ${NIGHT_MODE_ENABLED},
   "night_mode_start": "${NIGHT_MODE_START}",
   "night_mode_end": "${NIGHT_MODE_END}",
-  "night_mode_brightness": ${NIGHT_MODE_BRIGHTNESS}
+  "night_mode_brightness": ${NIGHT_MODE_BRIGHTNESS},
+  "motion_photos_enabled": ${MOTION_PHOTOS_ENABLED}
 }
 EOF
 

@@ -28,6 +28,11 @@ config.json
 test-photos/
 photos/
 
+# Derived files generated at runtime (decoded HEIC stills, motion clips)
+cache/
+geocache.json
+motioncache.json
+
 # IDE
 .vscode/
 .idea/

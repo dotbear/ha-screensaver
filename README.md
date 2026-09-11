@@ -19,7 +19,8 @@ Perfect for wall-mounted tablets running Home Assistant!
 - ⏪ Tap left edge of screen to go back to previous photo
 - ♻️ Automatic iframe refresh to prevent browser memory leaks
 - ⚙️ Easy configuration via Home Assistant UI
-- 🎨 Supports JPG, PNG, GIF, and WebP images
+- 🎨 Supports JPG, PNG, GIF, WebP, and HEIC/HEIF (iPhone) images
+- 🎞️ Live Photos and Motion Photos play their motion once, then hold on the still
 - 🚀 Optimized for Home Assistant Green (ARM devices)
 
 ## Installation
@@ -97,7 +98,21 @@ photos_source: media             # Where to find photos: "media", "share", or "a
 clock_position: bottom-center    # Clock position: bottom-center, top-center, top-left, top-right, bottom-left, bottom-right
 weather_entity: ""               # HA weather entity ID (e.g., "weather.home")
 media_player_entity: ""          # HA media player entity ID (e.g., "media_player.spotify")
+motion_photos_enabled: true      # Play the motion in Live Photos / Motion Photos
 ```
+
+### iPhone photos (HEIC) and Live Photos
+
+HEIC files are decoded to JPEG by the add-on, so you can copy them across
+straight from your phone - no converting first. The decoded copy is cached, so
+each photo is only converted once; dates and locations read from it appear from
+the next time the page loads.
+
+A Live Photo is two files, `IMG_0001.HEIC` and `IMG_0001.MOV`. Copy both into
+the same folder and the screensaver plays the motion once each time the photo
+comes up, then fades back to the still. Android Motion Photos, which keep the
+clip inside the image file itself, work the same way. Only the still is shown
+if the clip is missing or your browser can't decode it.
 
 ## Usage
 
@@ -151,7 +166,7 @@ Then open http://localhost:8080
 
 ### No photos showing
 - Check that photos are in the configured folder
-- Verify supported formats: JPG, JPEG, PNG, GIF, WebP
+- Verify supported formats: JPG, JPEG, PNG, GIF, WebP, HEIC, HEIF
 - Check add-on logs: **Settings** → **Add-ons** → **HA Screensaver** → **Log**
 
 ### Slideshow doesn't start
@@ -195,7 +210,8 @@ ha-screensaver/
 - `POST /api/media/next` - Skip to next track
 - `POST /api/media/previous` - Skip to previous track
 - `POST /api/media/volume` - Set volume level
-- `GET /photos/<filename>` - Serve individual photo
+- `GET /photos/<filename>` - Serve individual photo (HEIC/HEIF decoded to JPEG)
+- `GET /api/motion/<filename>` - Serve a photo's Live/Motion clip as MP4
 
 ## Contributing
 
