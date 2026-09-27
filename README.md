@@ -1,6 +1,6 @@
 # Home Assistant Screensaver
 
-A Python-based Home Assistant add-on that displays your Home Assistant UI and automatically switches to a photo slideshow after a period of inactivity.
+A Python-based Home Assistant app (formerly "add-on") that displays your Home Assistant UI and automatically switches to a photo slideshow after a period of inactivity.
 
 Perfect for wall-mounted tablets running Home Assistant!
 
@@ -14,6 +14,7 @@ Perfect for wall-mounted tablets running Home Assistant!
 - 🌤️ Weather overlay from Home Assistant weather entities
 - 🎵 Now Playing mode with album art, track info, and playback controls
 - 🔊 Volume slider and transport controls (previous, play/pause, next)
+- 🌙 Night mode: only a faint greyscale clock during set hours
 - ⚡ Configurable slide duration (1-60 seconds)
 - 👆 Touch/click to exit slideshow and return to Home Assistant
 - ⏪ Tap left edge of screen to go back to previous photo
@@ -25,48 +26,26 @@ Perfect for wall-mounted tablets running Home Assistant!
 
 ## Installation
 
-This is a **Home Assistant add-on**. Install it directly from your Home Assistant instance.
+This is a **Home Assistant app** (Home Assistant OS / Supervised only). Install it from your Home Assistant instance.
 
-### Method 1: Add Custom Repository (Recommended)
+### Method 1: App repository (recommended)
 
-1. **Add this repository to Home Assistant:**
-   - Go to **Settings** → **Add-ons** → **Add-on Store**
-   - Click **⋮** (three dots menu) in the top right
-   - Select **Repositories**
-   - Add this URL: `https://github.com/dotbear/ha-screensaver`
-   - Click **Add** → **Close**
+1. **Add this repository:** **Settings** → **Apps** → **App store** → **⋮** (top right) → **Repositories** → add `https://github.com/dotbear/ha-screensaver` → **Add** → **Close**.
+2. **Install:** refresh the store, open **Home Assistant Screensaver**, click **Install** (~30 seconds).
+3. **Configure:** on the **Configuration** tab, set the options you need (see [Configuration](#configuration)) and click **Save**. The defaults work out of the box with photos in the HA media library.
+4. **Start:** click **Start**, optionally enable **Start on boot**, then **Open Web UI** or browse to `http://homeassistant.local:8080`.
 
-2. **Install the add-on:**
-   - Refresh the Add-on Store page
-   - Find **"Home Assistant Screensaver"** in the list
-   - Click on it and then click **Install** (~30 seconds)
+Updates arrive through the app store whenever `version` in `ha-screensaver/config.yaml` is bumped.
 
-3. **Configure:**
-   - Go to the **Configuration** tab
-   - Set your preferences:
-     - `idle_timeout_seconds`: 60 (time before slideshow starts)
-     - `slide_interval_seconds`: 5 (duration each photo displays)
-     - `photos_source`: "media" (to use HA media library)
-     - `weather_entity`: Optional weather entity ID
-     - `media_player_entity`: Optional media player entity ID
+### Method 2: Local app (for testing changes)
 
-4. **Start the add-on:**
-   - Click **Start**
-   - Enable **"Start on boot"** (optional)
-   - Click **"Open Web UI"** or navigate to `http://homeassistant.local:8080`
-
-### Method 2: Manual Installation
-
-If you prefer to install manually:
-
-1. **Copy add-on to Home Assistant:**
+1. From the root of this repository, copy the app folder into the local apps folder. In current versions of the Terminal & SSH app that folder is `/local_apps` (older versions call it `/addons`):
    ```bash
-   scp -r ha-screensaver root@homeassistant.local:/addons/
+   scp -r ha-screensaver root@homeassistant.local:/local_apps/
    ```
-
-2. **Follow steps 2-4 from Method 1 above**
-
-For detailed installation instructions, see [INSTALL.md](ha-screensaver/INSTALL.md)
+   It must end up as `/local_apps/ha-screensaver/config.yaml`, not nested one level deeper. You can also copy it over the Samba app's share for local apps.
+2. **Settings** → **Apps** → **App store** → **⋮** → **Check for updates**. The app appears under **Local apps**.
+3. Continue with steps 2-4 of Method 1. After changing files, use **Rebuild** on the app page.
 
 ## Adding Photos
 
@@ -87,9 +66,15 @@ Use a file sync app to automatically upload photos from your iPhone:
 
 Point the app to upload to your Home Assistant's media folder.
 
+### Option 3: Samba share
+
+With the Samba share app installed, copy photos into its `media` share. Use
+`photos_source: share` and the `share` folder instead if you prefer to keep them
+out of the media library.
+
 ## Configuration
 
-Configure via the Home Assistant add-on configuration UI:
+Configure on the app's **Configuration** tab:
 
 ```yaml
 idle_timeout_seconds: 60         # Time before slideshow starts (1-3600)
@@ -98,12 +83,17 @@ photos_source: media             # Where to find photos: "media", "share", or "a
 clock_position: bottom-center    # Clock position: bottom-center, top-center, top-left, top-right, bottom-left, bottom-right
 weather_entity: ""               # HA weather entity ID (e.g., "weather.home")
 media_player_entity: ""          # HA media player entity ID (e.g., "media_player.spotify")
+media_player_sources: ""         # Comma-separated sources that trigger Now Playing (empty = all)
+night_mode_enabled: true         # Dim greyscale clock only during the night window
+night_mode_start: "21:00"        # HH:MM, 24-hour
+night_mode_end: "05:00"          # HH:MM; windows crossing midnight are fine
+night_mode_brightness: 15        # Night clock brightness, percent (1-100)
 motion_photos_enabled: true      # Play the motion in Live Photos / Motion Photos
 ```
 
 ### iPhone photos (HEIC) and Live Photos
 
-HEIC files are decoded to JPEG by the add-on, so you can copy them across
+HEIC files are decoded to JPEG by the app, so you can copy them across
 straight from your phone - no converting first. The decoded copy is cached, so
 each photo is only converted once; dates and locations read from it appear from
 the next time the page loads.
@@ -125,7 +115,7 @@ if the clip is missing or your browser can't decode it.
 
 ## Why Python?
 
-This add-on was originally written in Rust but rewritten in Python for better Home Assistant compatibility:
+This app was originally written in Rust but rewritten in Python for better Home Assistant compatibility:
 
 | Metric | Rust | Python |
 |--------|------|--------|
@@ -136,9 +126,9 @@ This add-on was originally written in Rust but rewritten in Python for better Ho
 
 ## Documentation
 
-- **[INSTALL.md](ha-screensaver/INSTALL.md)** - Detailed installation guide
-- **[BUG_FIXES.md](ha-screensaver/BUG_FIXES.md)** - Bug analysis and fixes
-- **[app.py](ha-screensaver/app.py)** - Source code
+- **[ha-screensaver/README.md](ha-screensaver/README.md)** - App documentation: every option, photo formats, Live Photos
+- **[ha-screensaver/CHANGELOG.md](ha-screensaver/CHANGELOG.md)** - Release history
+- **[AGENTS.md](AGENTS.md)** - Architecture notes for contributors and coding agents
 
 ## Development
 
@@ -164,38 +154,52 @@ Then open http://localhost:8080
 
 ## Troubleshooting
 
+### App doesn't appear after copying (local install)
+- Check that `config.yaml` is at `/local_apps/ha-screensaver/config.yaml` (not nested one level deeper)
+- Fix permissions if needed: `chmod -R 755 /local_apps/ha-screensaver`
+- Run **Check for updates** in the app store again, or restart Home Assistant
+
+### App won't build or start
+- Read the app's **Log** tab (**Settings** → **Apps** → **Home Assistant Screensaver** → **Log**)
+- Check free disk space and network access (the build downloads Python packages)
+- Remove and reinstall the app to force a clean build
+
 ### No photos showing
-- Check that photos are in the configured folder
+- Check that photos are in the top level of the configured folder (subfolders are not scanned)
 - Verify supported formats: JPG, JPEG, PNG, GIF, WebP, HEIC, HEIF
-- Check add-on logs: **Settings** → **Add-ons** → **HA Screensaver** → **Log**
+- Check the app's **Log** tab for errors
 
 ### Slideshow doesn't start
-- Ensure `idle_timeout_seconds` is set correctly
-- Verify at least one photo exists
-- Check browser console (F12) for errors
+- Ensure `idle_timeout_seconds` is what you expect, and stop touching the screen for that long
+- Verify at least one photo exists (night mode works without photos)
+- Check the browser console (F12) for errors
 
-### Add-on won't install
-- Check that files are in `/addons/ha-screensaver/`
-- Verify `config.yaml` exists
-- Restart Home Assistant if needed
+### Can't open the web UI
+- Confirm the app is running
+- Make sure nothing else uses port 8080, or use **Open Web UI** (ingress) instead
+- Try the IP directly: `http://<ha-ip>:8080`
 
-For more troubleshooting, see [INSTALL.md](ha-screensaver/INSTALL.md)
+### Slow or laggy slideshow
+- Resize very large photos (around 1920x1080 is plenty) and keep folders to a sensible size
+- The first scan of GPS-tagged photos is slow because locations are looked up at 1 per second; results are cached
 
 ## Project Structure
 
 ```
 ha-screensaver/
-├── ha-screensaver/            # Home Assistant add-on
+├── ha-screensaver/            # Home Assistant app
 │   ├── app.py                 # Main Python Flask application
 │   ├── requirements.txt       # Python dependencies
 │   ├── Dockerfile            # Container build instructions
 │   ├── run.sh                # Startup script
-│   ├── config.yaml           # Add-on configuration
+│   ├── config.yaml           # App configuration (options, schema, version)
 │   ├── static/               # Frontend files
 │   │   ├── index.html
 │   │   └── app.js
-│   └── *.md                  # Documentation
-├── repository.yaml            # Add-on repository configuration
+│   ├── README.md             # App documentation
+│   └── CHANGELOG.md
+├── repository.yaml            # App repository configuration
+├── AGENTS.md                  # Contributor/agent notes (CLAUDE.md symlinks here)
 └── README.md                  # This file
 ```
 
@@ -215,11 +219,7 @@ ha-screensaver/
 
 ## Contributing
 
-Found a bug or have a feature request? Please check the documentation first:
-
-1. **Installation issues:** See [INSTALL.md](ha-screensaver/INSTALL.md)
-2. **Known bugs:** See [BUG_FIXES.md](ha-screensaver/BUG_FIXES.md)
-3. **Code questions:** See [app.py](ha-screensaver/app.py)
+Found a bug or have a feature request? Open an issue or pull request on GitHub. Architecture notes are in [AGENTS.md](AGENTS.md).
 
 ## License
 

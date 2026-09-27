@@ -4,30 +4,40 @@ This file provides guidance to AI coding agents (Claude Code, Cursor, Copilot, e
 
 ## Project Overview
 
-Home Assistant add-on that displays the HA dashboard in an iframe and switches to a photo slideshow with clock overlay after user inactivity. When a configured media player is playing music, the screensaver switches to a "now playing" view with album art, track info, and playback/volume controls. Backend is a single-file Flask app (`ha-screensaver/app.py`), frontend is a single ES6 class (`ha-screensaver/static/app.js`). No build step, no bundler, no framework.
+Home Assistant app (formerly "add-on") that displays the HA dashboard in an iframe and switches to a photo slideshow with clock overlay after user inactivity. When a configured media player is playing music, the screensaver switches to a "now playing" view with album art, track info, and playback/volume controls. Backend is a single-file Flask app (`ha-screensaver/app.py`), frontend is a single ES6 class (`ha-screensaver/static/app.js`). No build step, no bundler, no framework.
 
 ## Development Commands
 
 ```bash
-# Local development (from ha-screensaver/ directory)
 cd ha-screensaver
-./test_local.sh                          # Sets up config, installs deps, runs server
-# Or manually:
-pip3 install -r requirements.txt
-python3 app.py                           # Serves on http://localhost:8080
-
-# Deploy to HA for testing
-scp -r ha-screensaver root@homeassistant.local:/addons/
-# Then in HA UI: Settings → Add-ons → HA Screensaver → Rebuild
+./test_local.sh          # writes a test config.json, installs deps, runs the server
+# or: pip3 install -r requirements.txt && python3 app.py   → http://localhost:8080
 ```
 
-There are no automated tests, linter, or formatter configured.
+Open `http://localhost:8080/?demo` to exercise the UI without Home Assistant: the
+frontend switches to `/api/demo/*` (mock config, weather, media; placeholder photo).
+`?demo&night=1` forces the night window open.
+
+There are no automated tests, linter, or formatter.
+
+## Releasing
+
+The production install on the user's HA Green is app `34eab35b_ha-screensaver`, installed
+from this GitHub repo — not a local copy. To ship: bump `version` in
+`ha-screensaver/config.yaml`, add a `ha-screensaver/CHANGELOG.md` entry, merge to
+`master`, then update the app in HA (Settings → Apps). For a throwaway test build, scp
+the app folder to `/local_apps/` in the Terminal & SSH app (formerly `/addons/`); it
+shows up as a separate local app that can be rebuilt in place.
+
+Production options reference HA entities (`weather_entity: weather.forecast_home`,
+`media_player_entity: media_player.stue_receiver`, `media_player_sources: Spotify`) —
+update them if those entities are renamed.
 
 ## Architecture
 
 ### Data flow: Config
 
-1. HA add-on UI writes options per `config.yaml` schema
+1. The HA app Configuration tab writes options per `config.yaml` schema
 2. `run.sh` reads them via `bashio::config`, writes `/app/config.json`
 3. `app.py` reads `/app/config.json` on each API request (falls back to `./config.json` for local dev)
 4. Frontend fetches `/api/config` on page load
@@ -71,7 +81,7 @@ user's photo folder.
 
 ### Data flow: Weather
 
-`/api/weather` proxies to HA Supervisor API using `SUPERVISOR_TOKEN` env var. Polled every 60 seconds while screensaver is active. Only available when running as an HA add-on.
+`/api/weather` proxies to HA Supervisor API using `SUPERVISOR_TOKEN` env var. Polled every 60 seconds while screensaver is active. Only available when running as an HA app.
 
 ### Data flow: Media Player
 
@@ -87,12 +97,13 @@ user's photo folder.
 - **Dashboard mode**: HA iframe visible, idle timer counting down
 - **Photo slideshow mode**: Random photo slides with clock, photo info (top-left), and weather (top-right) overlays. Tap anywhere to exit, tap left 10% to go back one photo.
 - **Now playing mode**: Activated when the configured media player is playing/paused. Shows album art (blurred background + centered sharp art), track info, transport controls (top center: ⏮ ⏯ ⏭), and volume slider (bottom, 90% width). Photo slideshow pauses; resumes when playback stops.
-- **Motion playback**: Not a mode — a photo with a `motion_url` plays its clip over
-  the still each time it becomes the active slide, then cross-fades back. The `<video>`
-  is built in `playMotion()` and destroyed in `removeMotion()` so a display left running
-  for weeks never holds more than one decoder. Night mode, now playing mode, and leaving
-  the screensaver all call `stopMotion()`.
 - **Night mode**: Active inside the configured night window (`night_mode_start`/`night_mode_end`, 21:00-05:00 by default). Everything except the clock is hidden via the `night` class on `#slideshow`, and the clock renders greyscale at `night_mode_brightness` percent opacity. Overrides now playing mode. Requires no photos, so the screensaver still starts with an empty photo folder.
+
+**Motion playback** is not a mode: a photo with a `motion_url` plays its clip over the
+still each time it becomes the active slide, then cross-fades back. The `<video>` is
+built in `playMotion()` and destroyed in `removeMotion()` so a display left running for
+weeks never holds more than one decoder. Night mode, now playing mode, and leaving the
+screensaver all call `stopMotion()`.
 
 Night mode is evaluated in the clock tick, so crossing either boundary switches modes in place while the screensaver runs. `setNightMode()` is the single entry point and no-ops when the state is unchanged. `isNightTime()` handles windows that wrap past midnight; a zero-length window (start == end) disables it. Weather and media polling short-circuit on `isNightActive`.
 
@@ -118,8 +129,9 @@ The HA frontend leaks memory when left open for extended periods (a known commun
 
 ## Adding a Configuration Option
 
-Must be updated in 4 places:
+Must be updated in 5 places:
 1. `config.yaml` — add to both `options` (default) and `schema` (validation)
 2. `run.sh` — read with `bashio::config`, add to the generated `config.json`
 3. `app.py` — add to `DEFAULT_CONFIG` dict, use via `load_config()`
 4. `app.js` — access from `this.config`
+5. Docs — an `### Option:` section in `ha-screensaver/README.md`, the config block in the root `README.md`, and the CHANGELOG

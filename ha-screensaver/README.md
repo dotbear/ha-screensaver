@@ -1,10 +1,10 @@
-# Home Assistant Screensaver Add-on
+# Home Assistant Screensaver
 
 A photo slideshow screensaver for Home Assistant that displays your HA dashboard and automatically switches to a photo slideshow after idle time.
 
 ## About
 
-This add-on provides a fullscreen web interface that shows your Home Assistant dashboard. After a configurable period of inactivity, it automatically switches to a beautiful photo slideshow using images from your Home Assistant media library or shared folders.
+This Home Assistant app (formerly called an add-on) provides a fullscreen web interface that shows your Home Assistant dashboard. After a configurable period of inactivity, it automatically switches to a beautiful photo slideshow using images from your Home Assistant media library or shared folders.
 
 Perfect for wall-mounted tablets or kiosk displays!
 
@@ -18,14 +18,15 @@ Perfect for wall-mounted tablets or kiosk displays!
 - Live Photos and Motion Photos play their motion once, then hold on the still
 - EXIF metadata display (date and location)
 - Weather overlay integration
+- Now playing view with album art, transport controls, and volume for a chosen media player
 - Night mode - dims to nothing but a faint greyscale clock during set hours
 - Lightweight and efficient
 
 ## Installation
 
-1. Click the "Add Repository" button below or manually add this repository to your Home Assistant add-on store
-2. Install the "Home Assistant Screensaver" add-on
-3. Start the add-on
+1. Add `https://github.com/dotbear/ha-screensaver` as a repository: **Settings** → **Apps** → **App store** → **⋮** → **Repositories**
+2. Install the "Home Assistant Screensaver" app
+3. Start the app
 4. Open the Web UI or navigate to `http://homeassistant.local:8080`
 
 ## Configuration
@@ -36,6 +37,8 @@ slide_interval_seconds: 5
 photos_source: "media"
 clock_position: "bottom-center"
 weather_entity: ""
+media_player_entity: ""
+media_player_sources: ""
 night_mode_enabled: true
 night_mode_start: "21:00"
 night_mode_end: "05:00"
@@ -60,7 +63,7 @@ Default: `5` (Range: 1-60)
 Where to find photos for the slideshow:
 - `media`: Use photos from `/media` folder (Home Assistant media library)
 - `share`: Use photos from `/share` folder
-- `addon`: Use photos from the add-on's own photos folder
+- `addon`: Use photos from the app's own internal photos folder
 
 Default: `media`
 
@@ -81,6 +84,18 @@ Default: `bottom-center`
 The Home Assistant weather entity to display on the slideshow (e.g., `weather.home`). Leave empty to disable.
 
 Default: `""` (disabled)
+
+### Option: `media_player_entity`
+
+The Home Assistant media player to show in the "now playing" view (e.g., `media_player.spotify`). While it is playing or paused, the screensaver shows album art, track info, transport controls, and a volume slider instead of photos. Leave empty to disable.
+
+Default: `""` (disabled)
+
+### Option: `media_player_sources`
+
+Comma-separated list of media player sources that activate the now playing view (e.g., `Spotify`, to ignore TV playback). Leave empty to allow all sources.
+
+Default: `""` (all sources)
 
 ### Option: `night_mode_enabled`
 
@@ -126,7 +141,7 @@ Default: `true`
 JPG, PNG, GIF, WebP, and HEIC/HEIF are all supported.
 
 HEIC is what an iPhone shoots by default, and no browser renders it, so the
-add-on decodes those files to JPEG itself — copy them over as they are, no
+app decodes those files to JPEG itself — copy them over as they are, no
 converting first. The decoded copy is cached, so each photo is converted only
 once, and its date and location appear from the next time the page loads.
 
@@ -141,7 +156,7 @@ Android Motion Photos keep their clip inside the image file, so they need
 nothing extra.
 
 Live Photos are usually HEVC, which most non-Apple browsers won't play, so the
-add-on re-encodes those clips to H.264 the first time they are shown. If a clip
+app re-encodes those clips to H.264 the first time they are shown. If a clip
 still can't be played, the photo simply stays still.
 
 ## How to Add Photos
@@ -156,8 +171,8 @@ still can't be played, the photo simply stays still.
 ### Using the Share Folder
 
 1. Copy photos to your Home Assistant's `/share` directory
-2. Set `photos_source: "share"` in the add-on configuration
-3. Restart the add-on
+2. Set `photos_source: "share"` in the app configuration
+3. Restart the app
 
 ### Auto-upload from iPhone
 
