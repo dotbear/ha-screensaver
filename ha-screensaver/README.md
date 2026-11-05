@@ -20,6 +20,7 @@ Perfect for wall-mounted tablets or kiosk displays!
 - Weather overlay integration
 - Now playing view with album art, transport controls, and volume for a chosen media player
 - Night mode - dims to nothing but a faint greyscale clock during set hours
+- Doorbell camera view that interrupts any screen, then returns automatically
 - Lightweight and efficient
 
 ## Installation
@@ -44,6 +45,9 @@ night_mode_start: "21:00"
 night_mode_end: "05:00"
 night_mode_brightness: 15
 motion_photos_enabled: true
+doorbell_entity: ""
+doorbell_camera_path: "/dashboard-camera"
+doorbell_display_seconds: 60
 ```
 
 ### Option: `idle_timeout_seconds`
@@ -135,6 +139,33 @@ they come up in the slideshow. Turn this off to show every photo as a plain
 still.
 
 Default: `true`
+
+### Option: `doorbell_entity`
+
+A date-and-time helper (`input_datetime`) stamped by your HA doorbell automation.
+For example: `input_datetime.dorklokke_sidste_ring`. Update it with
+`input_datetime.set_datetime`, using `timestamp: "{{ now().timestamp() }}"`.
+The screensaver reads the helper once per second in every mode, including night
+mode. A recent ring opens the camera; an expired or unavailable value does not.
+
+Default: `""` (disabled)
+
+### Option: `doorbell_camera_path`
+
+Relative HA dashboard/view path containing a live camera card. The camera view
+uses the same HA login as the normal dashboard. Use a tablet-compatible stream
+(usually H.264). Close or Escape dismisses it; timeout returns to the prior screen
+with the current night/music state. The camera stream is unloaded on exit.
+
+Default: `"/dashboard-camera"`
+
+### Option: `doorbell_display_seconds`
+
+How long to show the camera after a ring. Repeated polls never extend a ring, but
+a new ring restarts the deadline. Reload resumes only the remaining duration;
+dismissed rings stay closed. This feature never plays sound or sends notifications.
+
+Default: `60` (Range: 5–300 seconds)
 
 ## Photo Formats
 

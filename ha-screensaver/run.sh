@@ -44,25 +44,23 @@ bashio::log.info "Photos folder: ${PHOTOS_FOLDER}"
 # Create the photos folder if it doesn't exist
 mkdir -p "${PHOTOS_FOLDER}"
 
-# Create config.json for the Python application
-cat > /app/config.json <<EOF
-{
-  "home_assistant_url": "http://homeassistant.local:8123",
-  "photos_folder": "${PHOTOS_FOLDER}",
-  "photos_source": "${PHOTOS_SOURCE}",
-  "idle_timeout_seconds": ${IDLE_TIMEOUT},
-  "slide_interval_seconds": ${SLIDE_INTERVAL},
-  "clock_position": "${CLOCK_POSITION}",
-  "weather_entity": "${WEATHER_ENTITY}",
-  "media_player_entity": "${MEDIA_PLAYER_ENTITY}",
-  "media_player_sources": "${MEDIA_PLAYER_SOURCES}",
-  "night_mode_enabled": ${NIGHT_MODE_ENABLED},
-  "night_mode_start": "${NIGHT_MODE_START}",
-  "night_mode_end": "${NIGHT_MODE_END}",
-  "night_mode_brightness": ${NIGHT_MODE_BRIGHTNESS},
-  "motion_photos_enabled": ${MOTION_PHOTOS_ENABLED}
-}
-EOF
+# Serialize the validated options instead of interpolating strings into JSON.
+# A source name containing a quote/backslash must not break the whole config.
+SCREENSAVER_PHOTOS_FOLDER="${PHOTOS_FOLDER}" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+with open('/data/options.json') as source:
+    config = json.load(source)
+config.update({
+    'home_assistant_url': 'http://homeassistant.local:8123',
+    'photos_folder': os.environ['SCREENSAVER_PHOTOS_FOLDER'],
+})
+scratch = Path('/app/config.json.tmp')
+scratch.write_text(json.dumps(config))
+scratch.replace('/app/config.json')
+PY
 
 bashio::log.info "Configuration file created"
 bashio::log.info "Starting Python server..."

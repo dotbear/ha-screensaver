@@ -1,6 +1,8 @@
 #!/bin/bash
 # Quick local test script for the Python screensaver
 # This lets you test the app before deploying to Home Assistant
+set -euo pipefail
+cd "$(dirname "$0")"
 
 echo "========================================"
 echo "  Testing Python Screensaver Locally"
@@ -20,14 +22,18 @@ if ! command -v pip3 &> /dev/null; then
 fi
 echo "✓ pip3 found"
 
-# Install dependencies
+# Install dependencies without changing the system Python environment.
 echo ""
 echo "Installing dependencies..."
-pip3 install -q -r requirements.txt
+if [ ! -x .venv/bin/python ]; then
+    python3 -m venv --system-site-packages .venv
+fi
+.venv/bin/python -m pip install -q -r requirements.txt
 
 # Create test config
 echo ""
 echo "Creating test configuration..."
+if [ ! -f config.json ]; then
 cat > config.json << EOFCONFIG
 {
   "home_assistant_url": "http://homeassistant.local:8123",
@@ -35,6 +41,7 @@ cat > config.json << EOFCONFIG
   "idle_timeout_seconds": 60
 }
 EOFCONFIG
+fi
 echo "✓ Config created: config.json"
 
 # Create test photos directory
@@ -63,4 +70,4 @@ echo "Press Ctrl+C to stop the server"
 echo ""
 
 # Run the app
-python3 app.py
+exec .venv/bin/python app.py

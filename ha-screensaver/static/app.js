@@ -27,13 +27,41 @@ class ScreensaverApp {
     this.iframeReady = null;
     this.iframeLoaded = false;
     this.loadingHintTimer = null;
+    this.slideCleanupTimer = null;
+    this.isDoorbellActive = false;
+    this.doorbellPollTimer = null;
+    this.doorbellPollBusy = false;
+    this.doorbellPollFailures = 0;
+    this.doorbellTickTimer = null;
+    this.doorbellLoadTimer = null;
+    this.doorbellRingId = null;
+    this.doorbellHandledRing = null;
+    this.mediaEpoch = 0;
     this.demoMode = new URLSearchParams(window.location.search).has('demo');
+    this.demoRingAt = new URLSearchParams(window.location.search).get('doorbell') === '1'
+      ? Date.now() / 1000 : null;
 
     this.init();
   }
 
   apiUrl(path) {
-    return this.demoMode ? `api/demo/${path}` : `api/${path}`;
+    if (!this.demoMode) return `api/${path}`;
+    const params = new URLSearchParams();
+    if (path === 'config' && new URLSearchParams(window.location.search).get('night') === '1') {
+      params.set('night', '1');
+    }
+    if (path === 'doorbell' && this.demoRingAt !== null) params.set('ring_at', this.demoRingAt);
+    const query = params.toString();
+    return `api/demo/${path}${query ? `?${query}` : ''}`;
+  }
+
+  homeAssistantUrl() {
+    // In ingress, HA is the containing origin (including HTTPS/Nabu Casa).
+    // Hardcoding the LAN HTTP URL there creates mixed-content failures.
+    if (!this.demoMode && window.location.pathname.includes('/api/hassio_ingress/')) {
+      return window.location.origin;
+    }
+    return this.config.home_assistant_url;
   }
 
   async init() {
@@ -50,7 +78,10 @@ class ScreensaverApp {
           resolve();
         }, { once: true });
       });
-      iframe.src = this.config.home_assistant_url;
+      iframe.src = this.homeAssistantUrl();
+      this.setupEventListeners();
+      this.setupMediaControls();
+      this.setupDoorbell();
 
       this.setLoadingStatus('Loading photos…');
       // Reverse-geocoding new photos is rate-limited to 1/sec, so say so
@@ -69,8 +100,6 @@ class ScreensaverApp {
         ? 'Add photos to the configured folder to start the slideshow.'
         : '');
 
-      this.setupEventListeners();
-      this.setupMediaControls();
       this.setupIdleDetection();
 
       // Usually already loaded by now; the cap keeps an unreachable
@@ -167,6 +196,135 @@ class ScreensaverApp {
     }
   }
 
+  setupDoorbell() {
+    if (!this.config.doorbell_entity) return;
+    document.getElementById('doorbell-close').addEventListener('click', () => this.closeDoorbell(true));
+    document.getElementById('doorbell-retry').addEventListener('click', () => this.loadDoorbellCamera());
+    document.addEventListener('keydown', event => {
+      if (this.isDoorbellActive && event.key === 'Escape') this.closeDoorbell(true);
+    });
+    const check = () => {
+      if (!document.hidden) this.pollDoorbell();
+    };
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', check);
+    this.pollDoorbell();
+  }
+
+  async pollDoorbell() {
+    if (this.doorbellPollBusy) return;
+    clearTimeout(this.doorbellPollTimer);
+    this.doorbellPollBusy = true;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4500);
+    try {
+      const response = await fetch(this.apiUrl('doorbell'), { cache: 'no-store', signal: controller.signal });
+      if (!response.ok) throw new Error(`Doorbell HTTP ${response.status}`);
+      const ring = await response.json();
+      this.doorbellPollFailures = 0;
+      this.handleDoorbell(ring);
+    } catch (error) {
+      if (this.doorbellPollFailures === 0) console.warn('Doorbell connection unavailable; retrying', error);
+      this.doorbellPollFailures += 1;
+    } finally {
+      clearTimeout(timeout);
+      this.doorbellPollBusy = false;
+      const delay = Math.min(10000, 1000 * 2 ** Math.min(this.doorbellPollFailures, 4));
+      this.doorbellPollTimer = setTimeout(() => this.pollDoorbell(), delay);
+    }
+  }
+
+  handleDoorbell(ring) {
+    if (!ring || !ring.active || typeof ring.ring_id !== 'string') return;
+    if (!Number.isFinite(ring.expires_at) || !Number.isFinite(ring.server_time)) return;
+    const remaining = Math.min(this.config.doorbell_display_seconds || 60, ring.expires_at - ring.server_time);
+    if (remaining <= 0 || this.doorbellHandledRing === ring.ring_id) return;
+    try {
+      if (sessionStorage.getItem('screensaver-dismissed-ring') === ring.ring_id) return;
+    } catch (_) { /* Storage can be disabled in kiosk/private browsers. */ }
+
+    let cameraUrl;
+    if (this.demoMode) {
+      cameraUrl = new URL(this.apiUrl('camera'), window.location.href);
+    } else {
+      const haUrl = new URL(this.homeAssistantUrl());
+      cameraUrl = new URL(ring.camera_path, haUrl.origin);
+      if (cameraUrl.origin !== haUrl.origin) return;
+    }
+    this.doorbellHandledRing = ring.ring_id;
+    this.doorbellRingId = ring.ring_id;
+    // Use the server's remaining duration and a monotonic clock: the tablet's
+    // wall clock may differ from HA's, or change while this view is open.
+    this.doorbellDeadline = performance.now() + remaining * 1000;
+    this.doorbellCameraUrl = cameraUrl.href;
+    if (!this.isDoorbellActive) {
+      this.doorbellResumeScreensaver = this.isScreensaverActive;
+      this.doorbellPreviousFocus = document.activeElement;
+      this.isDoorbellActive = true;
+      this.stopScreensaver();
+      clearTimeout(this.idleTimer);
+      document.getElementById('ha-iframe').inert = true;
+      document.getElementById('slideshow').inert = true;
+      document.getElementById('doorbell').classList.add('active');
+      this.loadDoorbellCamera();
+      document.getElementById('doorbell-close').focus({ preventScroll: true });
+    }
+    clearInterval(this.doorbellTickTimer);
+    const tick = () => {
+      const seconds = Math.ceil((this.doorbellDeadline - performance.now()) / 1000);
+      if (seconds <= 0) {
+        this.closeDoorbell(false);
+      } else {
+        document.getElementById('doorbell-countdown').textContent = `${seconds}s`;
+      }
+    };
+    tick();
+    this.doorbellTickTimer = setInterval(tick, 250);
+  }
+
+  loadDoorbellCamera() {
+    if (!this.isDoorbellActive) return;
+    const frame = document.getElementById('doorbell-frame');
+    const status = document.getElementById('doorbell-status');
+    const retry = document.getElementById('doorbell-retry');
+    clearTimeout(this.doorbellLoadTimer);
+    status.textContent = 'Connecting to the camera…';
+    status.hidden = false;
+    retry.hidden = true;
+    document.getElementById('doorbell-open').href = this.doorbellCameraUrl;
+    frame.onload = () => {
+      if (!this.isDoorbellActive) return;
+      clearTimeout(this.doorbellLoadTimer);
+      status.hidden = true;
+    };
+    frame.src = this.doorbellCameraUrl;
+    this.doorbellLoadTimer = setTimeout(() => {
+      if (!this.isDoorbellActive) return;
+      status.textContent = 'Camera is taking longer than expected. Retry or open the camera directly.';
+      retry.hidden = false;
+    }, 15000);
+  }
+
+  closeDoorbell(dismissed) {
+    if (!this.isDoorbellActive) return;
+    if (dismissed) {
+      try { sessionStorage.setItem('screensaver-dismissed-ring', this.doorbellRingId); } catch (_) { }
+    }
+    clearInterval(this.doorbellTickTimer);
+    clearTimeout(this.doorbellLoadTimer);
+    const frame = document.getElementById('doorbell-frame');
+    frame.onload = null;
+    // Stop the camera stream and release its decoder, not just its visibility.
+    frame.src = 'about:blank';
+    document.getElementById('doorbell').classList.remove('active');
+    document.getElementById('ha-iframe').inert = false;
+    document.getElementById('slideshow').inert = false;
+    this.isDoorbellActive = false;
+    if (this.doorbellResumeScreensaver) this.startScreensaver();
+    else this.setupIdleDetection();
+    if (this.doorbellPreviousFocus?.isConnected) this.doorbellPreviousFocus.focus({ preventScroll: true });
+  }
+
   setupEventListeners() {
     const slideshow = document.getElementById('slideshow');
 
@@ -177,7 +335,7 @@ class ScreensaverApp {
 
       const x = e.touches ? e.touches[0].clientX : e.clientX;
 
-      if (x < window.innerWidth * 0.1) {
+      if (x < window.innerWidth * 0.1 && !this.isNightActive && !this.isMediaMode) {
         // Left 10% of screen - go back one image
         this.previousSlide();
         this.resetSlideTimer();
@@ -194,20 +352,20 @@ class ScreensaverApp {
   setupMediaControls() {
     document.getElementById('btn-play-pause').addEventListener('click', (e) => {
       e.stopPropagation();
-      fetch('api/media/play_pause', { method: 'POST' });
+      this.controlMedia('play_pause');
       // Immediately poll for updated state
       setTimeout(() => this.loadMedia(), 500);
     });
 
     document.getElementById('btn-prev').addEventListener('click', (e) => {
       e.stopPropagation();
-      fetch('api/media/previous', { method: 'POST' });
+      this.controlMedia('previous');
       setTimeout(() => this.loadMedia(), 500);
     });
 
     document.getElementById('btn-next').addEventListener('click', (e) => {
       e.stopPropagation();
-      fetch('api/media/next', { method: 'POST' });
+      this.controlMedia('next');
       setTimeout(() => this.loadMedia(), 500);
     });
 
@@ -215,11 +373,7 @@ class ScreensaverApp {
     volumeSlider.addEventListener('change', (e) => {
       e.stopPropagation();
       const volume = parseInt(e.target.value) / 100;
-      fetch('api/media/volume', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ volume_level: volume })
-      });
+      this.controlMedia('volume', { volume_level: volume });
     });
 
     // Prevent slideshow touch interactions on controls
@@ -231,13 +385,24 @@ class ScreensaverApp {
     });
   }
 
+  async controlMedia(action, data = {}) {
+    // Demo buttons must never call the real configured HA media player.
+    if (this.demoMode) return;
+    try {
+      const response = await fetch(`api/media/${action}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+      });
+      if (!response.ok) console.warn(`Media control failed: ${response.status}`);
+    } catch (error) { console.warn('Media control unavailable', error); }
+  }
+
   setupIdleDetection() {
     // Only attach listeners once to avoid duplicates on repeated calls
     if (!this._idleListenersAttached) {
       this._idleListenersAttached = true;
 
       const resetIdleTimer = () => {
-        if (this.isScreensaverActive) return;
+        if (this.isScreensaverActive || this.isDoorbellActive) return;
         clearTimeout(this.idleTimer);
         this.idleTimer = setTimeout(() => {
           this.startScreensaver();
@@ -261,6 +426,7 @@ class ScreensaverApp {
 
     // Start/restart the idle timer
     clearTimeout(this.idleTimer);
+    if (this.isDoorbellActive) return;
     this.idleTimer = setTimeout(() => {
       this.startScreensaver();
     }, this.config.idle_timeout_seconds * 1000);
@@ -302,6 +468,7 @@ class ScreensaverApp {
    */
   setNightMode(active) {
     if (active === this.isNightActive) return;
+    this.mediaEpoch += 1;
     this.isNightActive = active;
     console.log(active ? 'Entering night mode' : 'Leaving night mode');
 
@@ -342,6 +509,7 @@ class ScreensaverApp {
   }
 
   startScreensaver() {
+    if (this.isDoorbellActive) return;
     const nightMode = this.isNightTime();
 
     // Night mode needs no photos -- it only shows the clock
@@ -383,7 +551,11 @@ class ScreensaverApp {
       if (index === startIndex) slide.classList.add('active');
 
       const img = document.createElement('img');
-      img.src = photo.url;
+      img.dataset.src = photo.url;
+      img.onload = () => {
+        if (this.currentSlideIndex === index) this.updateClockColor(slide);
+      };
+      if (index === startIndex) img.src = photo.url;
       img.alt = `Photo ${index + 1}`;
 
       slide.appendChild(img);
@@ -507,6 +679,7 @@ class ScreensaverApp {
   }
 
   nextSlide() {
+    if (!this.isScreensaverActive || this.isDoorbellActive || this.isNightActive || this.isMediaMode) return;
     const slides = document.querySelectorAll('.slide');
     if (slides.length === 0) return;
 
@@ -525,6 +698,7 @@ class ScreensaverApp {
     }
 
     this.currentSlideIndex = nextIndex;
+    this.loadSlideImage();
     slides[this.currentSlideIndex].classList.add('active');
 
     this.updateClockColor(slides[this.currentSlideIndex]);
@@ -538,11 +712,24 @@ class ScreensaverApp {
 
     slides[this.currentSlideIndex].classList.remove('active');
     this.currentSlideIndex = this.slideHistory.pop();
+    this.loadSlideImage();
     slides[this.currentSlideIndex].classList.add('active');
 
     this.updateClockColor(slides[this.currentSlideIndex]);
     this.updatePhotoInfo(this.currentSlideIndex);
     this.playMotion(this.currentSlideIndex);
+  }
+
+  loadSlideImage() {
+    const slides = document.querySelectorAll('.slide');
+    const image = slides[this.currentSlideIndex]?.querySelector('img');
+    if (image && !image.hasAttribute('src')) image.src = image.dataset.src;
+    clearTimeout(this.slideCleanupTimer);
+    this.slideCleanupTimer = setTimeout(() => {
+      slides.forEach((slide, index) => {
+        if (index !== this.currentSlideIndex) slide.querySelector('img').removeAttribute('src');
+      });
+    }, 1100); // Retain the old image only for the one-second crossfade.
   }
 
   resetSlideTimer() {
@@ -600,6 +787,10 @@ class ScreensaverApp {
   }
 
   updateClockColor(slideElement) {
+    if (this.isNightActive || this.isMediaMode) {
+      this.setClockColor(true);
+      return;
+    }
     const img = slideElement.querySelector('img');
     if (!img || !img.complete || img.naturalHeight === 0) {
       // Default to white if image not loaded or failed to load
@@ -716,7 +907,7 @@ class ScreensaverApp {
   }
 
   async loadWeather() {
-    if (!this.config.weather_entity || this.isNightActive) return;
+    if (!this.config.weather_entity || this.isNightActive || this.isDoorbellActive) return;
     try {
       const response = await fetch(this.apiUrl('weather'));
       if (!response.ok) return;
@@ -762,11 +953,14 @@ class ScreensaverApp {
   }
 
   async loadMedia() {
-    if (!this.config.media_player_entity || this.isNightActive) return;
+    if (!this.config.media_player_entity || this.isNightActive || this.isDoorbellActive) return;
+    const epoch = this.mediaEpoch;
     try {
       const response = await fetch(this.apiUrl('media'));
       if (!response.ok) return;
-      this.media = await response.json();
+      const media = await response.json();
+      if (epoch !== this.mediaEpoch || !this.isScreensaverActive || this.isNightActive || this.isDoorbellActive) return;
+      this.media = media;
 
       const isActive = this.media && (this.media.state === 'playing' || this.media.state === 'paused');
       const sourceAllowed = this.isSourceAllowed(this.media?.source);
@@ -791,7 +985,7 @@ class ScreensaverApp {
   enterMediaMode() {
     const np = document.getElementById('now-playing');
     const photoInfo = document.getElementById('photo-info');
-    if (!np || !this.media || this.isNightActive) return;
+    if (!np || !this.media || this.isNightActive || this.isDoorbellActive || !this.isScreensaverActive) return;
 
     // Pause photo slideshow when entering media mode
     if (!this.isMediaMode) {
@@ -879,6 +1073,8 @@ class ScreensaverApp {
   stopScreensaver() {
     console.log('Stopping screensaver');
     this.isScreensaverActive = false;
+    this.mediaEpoch += 1;
+    clearTimeout(this.slideCleanupTimer);
 
     const slideshow = document.getElementById('slideshow');
     slideshow.classList.remove('active');

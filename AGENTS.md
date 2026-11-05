@@ -18,7 +18,10 @@ Open `http://localhost:8080/?demo` to exercise the UI without Home Assistant: th
 frontend switches to `/api/demo/*` (mock config, weather, media; placeholder photo).
 `?demo&night=1` forces the night window open.
 
-There are no automated tests, linter, or formatter.
+Run `python -m unittest discover -s tests -v` for backend regression checks.
+`node tests/browser.cjs` runs silent demo-mode browser checks with Playwright
+against a local server at port 18080 (`SCREENSAVER_TEST_URL` overrides it).
+`CHROMIUM_EXECUTABLE` selects an installed Chromium. There is no formatter or linter.
 
 ## Releasing
 
@@ -34,6 +37,21 @@ Production options reference HA entities (`weather_entity: weather.forecast_home
 update them if those entities are renamed.
 
 ## Architecture
+
+### Doorbell camera override
+
+`doorbell_entity` names an `input_datetime` helper stamped by the HA doorbell
+automation. `/api/doorbell` reads its numeric timestamp through Supervisor and
+returns a normalized ring ID, absolute expiry, and server clock. Polling starts
+before photo scanning and runs in every UI mode. A separate camera iframe above
+the main screen preserves its location; dismiss/expiry unloads the stream and
+recomputes the prior mode. A monotonic frontend deadline handles tablet clock
+skew; unchanged polls never renew a ring. Session storage preserves dismissal.
+Demo mode has a silent camera preview at `?demo&doorbell=1`.
+
+The screensaver only reads the ring helper. Chimes and phone notifications belong
+to HA automations; test camera switching with demo mode or a standalone helper
+update to avoid ringing the bell.
 
 ### Data flow: Config
 
@@ -122,7 +140,10 @@ The HA frontend leaks memory when left open for extended periods (a known commun
 - **`send_from_directory` for photo serving** — never replace this, it prevents path traversal
 - **Photo list is not cached** — `/api/photos` rescans on every request so new photos appear immediately
 - **Gunicorn in production** — `run.sh` starts Gunicorn (2 workers, 4 threads); `app.py` `__main__` is for local dev only
-- **`/api/media/image` only proxies `/api/` paths** — this prevents it being used as an open proxy
+- **`/api/media/image` only proxies media-player/image image endpoints and refuses redirects** — its Supervisor token must never reach arbitrary HA APIs or another host
+- **Media controls require same-origin JSON POSTs** — don't re-enable wildcard CORS or let demo controls call real HA services
+- **Asset URLs must stay ingress-relative and percent-encoded** — absolute `/photos` and `/api` paths escape the ingress prefix
+- **Conversion locks and geocoding limits span all Gunicorn workers** — per-process globals cannot enforce them; never prune scratch files or unlink live lock inodes
 - **`resolve_photo` guards the paths `send_from_directory` can't** — HEIC decoding and motion clips need the source path before serving, so they go through `safe_join` plus an extension whitelist; the response itself is still served with `send_from_directory` from the cache directory
 - **Photo scanning must stay cheap** — the scan runs behind the loading overlay on every page load, so anything that reads whole files (HEIC decoding, embedded-clip detection) is either deferred to the serving path or cached to disk
 - **External decoders are optional at runtime** — missing `heif-convert` skips HEIC files, missing `ffmpeg` serves clips untranscoded; neither should break the scan
@@ -131,7 +152,7 @@ The HA frontend leaks memory when left open for extended periods (a known commun
 
 Must be updated in 5 places:
 1. `config.yaml` — add to both `options` (default) and `schema` (validation)
-2. `run.sh` — read with `bashio::config`, add to the generated `config.json`
+2. `run.sh` — validated options are serialized from `/data/options.json`; add logging there only if useful
 3. `app.py` — add to `DEFAULT_CONFIG` dict, use via `load_config()`
 4. `app.js` — access from `this.config`
 5. Docs — an `### Option:` section in `ha-screensaver/README.md`, the config block in the root `README.md`, and the CHANGELOG
