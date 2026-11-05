@@ -15,6 +15,7 @@ Perfect for wall-mounted tablets running Home Assistant!
 - 🎵 Now Playing mode with album art, track info, and playback controls
 - 🔊 Volume slider and transport controls (previous, play/pause, next)
 - 🌙 Night mode: only a faint greyscale clock during set hours
+- 🔔 Doorbell camera view over any screen, with automatic return and a Close button
 - ⚡ Configurable slide duration (1-60 seconds)
 - 👆 Touch/click to exit slideshow and return to Home Assistant
 - ⏪ Tap left edge of screen to go back to previous photo
@@ -89,7 +90,38 @@ night_mode_start: "21:00"        # HH:MM, 24-hour
 night_mode_end: "05:00"          # HH:MM; windows crossing midnight are fine
 night_mode_brightness: 15        # Night clock brightness, percent (1-100)
 motion_photos_enabled: true      # Play the motion in Live Photos / Motion Photos
+doorbell_entity: ""              # input_datetime helper stamped by a doorbell automation
+doorbell_camera_path: /dashboard-camera
+doorbell_display_seconds: 60     # Camera timeout (5-300 seconds)
 ```
+
+### Doorbell camera
+
+Create a date-and-time helper in HA and have your doorbell automation update it
+with `input_datetime.set_datetime`, using `timestamp: "{{ now().timestamp() }}"`.
+Set `doorbell_entity` to its entity ID (for example,
+`input_datetime.dorklokke_sidste_ring`) and `doorbell_camera_path` to a live camera
+dashboard/view. Use a stream your tablet can decode, usually H.264.
+
+The app checks the helper once per second, even during night mode. A recent ring
+opens the camera for the remaining timeout; an old ring is ignored. Close or
+Escape dismisses it. A separate camera iframe preserves the current dashboard
+and stops streaming on exit. Music keeps playing. Your existing HA iframe login
+also authenticates the camera; if that session expires, sign in again.
+
+Preview without HA at `?demo&doorbell=1`, or combine with `&night=1`. Demo controls
+never call a real media player. The screensaver only reads the ring helper: chimes
+and phone notifications belong to your HA automation.
+
+### Development checks
+
+Run `python -m unittest discover -s tests -v` with the app requirements installed.
+The browser regression script is `node tests/browser.cjs` with Playwright installed
+and a local server running on port 18080, for example
+`python -m flask --app ha-screensaver/app.py run --port 18080`
+(`SCREENSAVER_TEST_URL` overrides it).
+Set `CHROMIUM_EXECUTABLE` to use an installed Chromium instead of Playwright's
+bundled browser. These checks use demo mode and mute their test browser.
 
 ### iPhone photos (HEIC) and Live Photos
 

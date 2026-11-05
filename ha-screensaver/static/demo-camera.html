@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo front door camera</title>
+<style>
+body { margin: 0; height: 100vh; display: grid; place-content: center; text-align: center;
+       font: 22px system-ui; color: #d4e3df; background: radial-gradient(ellipse at 50% 35%, #344b45, #101c19); }
+.door { width: 160px; height: 240px; border: 5px solid #90a79e; border-radius: 5px 5px 0 0;
+        margin: 0 auto 32px; position: relative; background: #253930; }
+.door::after { content: ''; position: absolute; right: 16px; top: 50%; width: 10px; height: 10px;
+               background: #b5a486; border-radius: 50%; }
+p { color: #a3bab0; font-size: 16px; }
+time { font-variant-numeric: tabular-nums; }
+</style>
+<div class="door"></div>
+<div>Front door · demo camera</div>
+<p><time></time> · silent preview</p>
+<script>
+const tick = () => { document.querySelector('time').textContent = new Date().toLocaleTimeString(); };
+tick();
+setInterval(tick, 1000);
+</script>
+</html>

@@ -7,16 +7,20 @@ It displays the HA dashboard and switches to a photo slideshow after idle time.
 """
 
 import hashlib
+import fcntl
 import os
 import json
 import logging
+import math
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 import urllib.parse
 import urllib.request
 from datetime import datetime
+from functools import wraps
 from pathlib import Path
 from typing import Iterator, List, Dict, Any, Optional, Tuple
 
@@ -27,7 +31,6 @@ except ImportError:
     HAS_PILLOW = False
 
 from flask import Flask, Response, jsonify, request, send_file, send_from_directory
-from flask_cors import CORS
 from werkzeug.utils import safe_join
 
 logging.basicConfig(
@@ -37,7 +40,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_folder='static')
-CORS(app)
 
 CONFIG_FILE = Path("/app/config.json")
 if not CONFIG_FILE.exists():
@@ -57,7 +59,10 @@ DEFAULT_CONFIG = {
     "night_mode_start": "21:00",
     "night_mode_end": "05:00",
     "night_mode_brightness": 15,
-    "motion_photos_enabled": True
+    "motion_photos_enabled": True,
+    "doorbell_entity": "",
+    "doorbell_camera_path": "/dashboard-camera",
+    "doorbell_display_seconds": 60
 }
 
 
@@ -143,8 +148,8 @@ def extract_exif(file_path: str) -> Dict[str, Any]:
     if not HAS_PILLOW:
         return {}
     try:
-        img = Image.open(file_path)
-        exif_data = img._getexif()
+        with Image.open(file_path) as img:
+            exif_data = img._getexif()
         if not exif_data:
             return {}
 
@@ -175,7 +180,21 @@ def extract_exif(file_path: str) -> Dict[str, Any]:
 
 # --------------- Reverse geocoding with disk cache ---------------
 
-GEOCACHE_FILE = Path("/app/geocache.json")
+GEOCACHE_FILE = APP_DIR / "geocache.json"
+
+
+def _save_json_cache(path: Path, data) -> None:
+    """Readers in another Gunicorn worker must see a complete JSON document."""
+    scratch = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(mode='w', dir=path.parent, delete=False) as handle:
+            scratch = Path(handle.name)
+            json.dump(data, handle)
+        os.replace(scratch, path)
+    finally:
+        if scratch is not None:
+            scratch.unlink(missing_ok=True)
 
 
 def _load_geocache() -> Dict[str, Optional[str]]:
@@ -190,9 +209,7 @@ def _load_geocache() -> Dict[str, Optional[str]]:
 
 def _save_geocache(cache: Dict[str, Optional[str]]) -> None:
     try:
-        GEOCACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(GEOCACHE_FILE, 'w') as f:
-            json.dump(cache, f, indent=2)
+        _save_json_cache(GEOCACHE_FILE, cache)
     except Exception:
         pass
 
@@ -231,6 +248,25 @@ def _format_coords(lat: float, lng: float) -> str:
     return f"{abs(lat):.1f}\u00b0{lat_dir}, {abs(lng):.1f}\u00b0{lng_dir}"
 
 
+def _cached_location(lat: float, lng: float) -> Optional[str]:
+    # Nominatim's one-request/second limit applies to the whole app, not to
+    # each of Gunicorn's eight request threads independently.
+    try:
+        GEOCACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with GEOCACHE_FILE.with_suffix('.lock').open('a') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            cache = _load_geocache()
+            key = f"{lat:.2f},{lng:.2f}"
+            if key not in cache:
+                cache[key] = _nominatim_reverse(lat, lng)
+                _save_geocache(cache)
+                time.sleep(1)
+            return cache[key]
+    except OSError as error:
+        logger.warning('Location cache unavailable: %s', error)
+        return None
+
+
 # ============================================================================
 # HEIC STILLS AND MOTION PHOTOS
 # ============================================================================
@@ -241,7 +277,7 @@ def _cache_key(path: Path) -> Optional[str]:
         stat = path.stat()
     except OSError:
         return None
-    raw = f"{path}|{stat.st_size}|{int(stat.st_mtime)}"
+    raw = f"{path}|{stat.st_size}|{stat.st_mtime_ns}"
     return hashlib.sha1(raw.encode('utf-8', 'replace')).hexdigest()
 
 
@@ -256,6 +292,9 @@ def _prune_cache() -> None:
         entries = []
         total = 0
         for path in CACHE_DIR.iterdir():
+            # Never remove a decoder's in-flight scratch files or lock files.
+            if not re.fullmatch(r'[0-9a-f]{40}\.(jpg|mp4)', path.name):
+                continue
             try:
                 stat = path.stat()
             except OSError:
@@ -303,6 +342,26 @@ def _run_tool(command: List[str], timeout: int) -> bool:
     return False
 
 
+def serialized_conversion(function):
+    """One decoder per source across Gunicorn threads and worker processes."""
+    @wraps(function)
+    def convert(path, *args, **kwargs):
+        if kwargs.get('decode') is False:
+            return function(path, *args, **kwargs)
+        key = _cache_key(path)
+        if key is None or not _ensure_cache_dir():
+            return None
+        locks = CACHE_DIR / '.locks'
+        locks.mkdir(exist_ok=True)
+        # Keep lock inodes stable: deleting an unlocked file can split a waiter
+        # and a new caller onto two different locks for the same source.
+        with (locks / key).open('a') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            return function(path, *args, **kwargs)
+    return convert
+
+
+@serialized_conversion
 def heif_jpeg(path: Path, decode: bool = True) -> Optional[Path]:
     """
     Return a cached JPEG rendering of a HEIC/HEIF file.
@@ -502,9 +561,7 @@ def _load_motioncache() -> Dict[str, int]:
 
 def _save_motioncache(cache: Dict[str, int]) -> None:
     try:
-        MOTIONCACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(MOTIONCACHE_FILE, 'w') as f:
-            json.dump(cache, f, indent=2)
+        _save_json_cache(MOTIONCACHE_FILE, cache)
     except Exception:
         pass
 
@@ -620,6 +677,7 @@ def _normalise_clip(source: Path, key: str, dest: Path) -> Optional[Path]:
     return dest
 
 
+@serialized_conversion
 def motion_clip(image_path: Path) -> Optional[Path]:
     """Cached, browser-playable MP4 of a photo's motion, or None."""
     key = _cache_key(image_path)
@@ -704,12 +762,12 @@ def get_image_files(folder_path: str, motion_enabled: bool = True) -> List[Dict[
                         exif_source = heif_jpeg(file_path, decode=False)
 
                     photo = {
-                        "url": f"/photos/{file_path.name}",
+                        "url": f"photos/{urllib.parse.quote(file_path.name, safe='')}",
                         "exif": extract_exif(str(exif_source)) if exif_source else {}
                     }
                     if motion_enabled and _has_motion(file_path, motion_cache, seen_motion):
                         photo["motion_url"] = (
-                            f"/api/motion/{urllib.parse.quote(file_path.name)}"
+                            f"api/motion/{urllib.parse.quote(file_path.name, safe='')}"
                         )
                     photos.append(photo)
 
@@ -719,7 +777,6 @@ def get_image_files(folder_path: str, motion_enabled: bool = True) -> List[Dict[
 
         # Batch reverse-geocode any new GPS coordinates
         geocache = _load_geocache()
-        needs_save = False
 
         for photo in photos:
             exif = photo.get('exif', {})
@@ -729,15 +786,10 @@ def get_image_files(folder_path: str, motion_enabled: bool = True) -> List[Dict[
 
             cache_key = f"{lat:.2f},{lng:.2f}"
             if cache_key not in geocache:
-                geocache[cache_key] = _nominatim_reverse(lat, lng)
-                needs_save = True
-                time.sleep(1)  # Nominatim rate limit: 1 req/s
+                geocache[cache_key] = _cached_location(lat, lng)
 
             location = geocache.get(cache_key)
             exif['location'] = location if location else _format_coords(lat, lng)
-
-        if needs_save:
-            _save_geocache(geocache)
 
         logger.info(f"Found {len(photos)} photos in {folder_path}")
         return sorted(photos, key=lambda p: p["url"])
@@ -753,6 +805,70 @@ def get_image_files(folder_path: str, motion_enabled: bool = True) -> List[Dict[
 # ============================================================================
 # API ROUTES
 # ============================================================================
+
+@app.before_request
+def protect_media_controls():
+    # The UI is same-origin. Requiring JSON blocks cross-site form/simple POSTs
+    # to the app's privileged HA controls without adding another login on LAN.
+    if (request.method == 'POST' and request.path.startswith('/api/media/')
+            and not request.is_json):
+        return jsonify({"error": "JSON request required"}), 415
+
+
+@app.after_request
+def prevent_stale_api_responses(response):
+    if request.path.startswith('/api/'):
+        response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+def doorbell_status(state: Dict[str, Any], config: Dict[str, Any], now: float):
+    """Build a durable ring ID from the helper's numeric, timezone-safe value."""
+    inactive = {'active': False, 'server_time': now}
+    if not isinstance(state, dict) or state.get('state') in ('unknown', 'unavailable'):
+        return inactive
+    attributes = state.get('attributes')
+    if not isinstance(attributes, dict):
+        return inactive
+    timestamp = attributes.get('timestamp')
+    if isinstance(timestamp, bool) or not isinstance(timestamp, (int, float)):
+        return inactive
+    if not math.isfinite(timestamp) or timestamp <= 0 or timestamp > now + 5:
+        return inactive
+    # input_datetime persists whole seconds; normalizing avoids a changed ring
+    # ID when an HA restart drops the in-memory fractional part.
+    timestamp = int(timestamp)
+    expires_at = timestamp + config['doorbell_display_seconds']
+    return {
+        'active': timestamp <= now and expires_at > now,
+        'ring_id': f"{config['doorbell_entity']}:{timestamp}",
+        'ring_at': timestamp,
+        'expires_at': expires_at,
+        'server_time': now,
+        'camera_path': config['doorbell_camera_path'],
+    }
+
+
+@app.route('/api/doorbell', methods=['GET'])
+def get_doorbell():
+    config = load_config()
+    entity = config['doorbell_entity']
+    if not entity:
+        return jsonify({'active': False, 'server_time': time.time()})
+    token = os.environ.get('SUPERVISOR_TOKEN', '')
+    if not token:
+        return jsonify({'error': 'Home Assistant connection unavailable'}), 503
+    req = urllib.request.Request(
+        f'http://supervisor/core/api/states/{entity}',
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=3) as response:
+            state = json.loads(response.read())
+        return jsonify(doorbell_status(state, config, time.time()))
+    except Exception as error:
+        logger.warning('Doorbell state unavailable: %s', error)
+        return jsonify({'error': 'Home Assistant connection unavailable'}), 503
 
 @app.route('/api/config', methods=['GET'])
 def get_config():
@@ -838,7 +954,7 @@ def get_media():
         if entity_picture:
             if entity_picture.startswith('/'):
                 # Relative HA URL — proxy through our endpoint
-                image_url = f'/api/media/image?url={urllib.parse.quote(entity_picture)}'
+                image_url = f'api/media/image?url={urllib.parse.quote(entity_picture, safe="")}'
             else:
                 # Absolute URL (e.g. Spotify CDN) — use directly
                 image_url = entity_picture
@@ -861,7 +977,11 @@ def get_media():
 def get_media_image():
     """GET /api/media/image - Proxy album art image from Home Assistant."""
     image_path = request.args.get('url', '')
-    if not image_path or not image_path.startswith('/api/'):
+    # This proxy carries the privileged Supervisor token. Only album images
+    # belong here, never arbitrary HA APIs or a redirect to another server.
+    if not image_path.startswith(('/api/media_player_proxy/', '/api/image/serve/')):
+        return jsonify({"error": "Invalid image URL"}), 400
+    if '..' in urllib.parse.unquote(image_path).split('/') or '\\' in image_path:
         return jsonify({"error": "Invalid image URL"}), 400
 
     supervisor_token = os.environ.get('SUPERVISOR_TOKEN', '')
@@ -873,7 +993,12 @@ def get_media_image():
         req = urllib.request.Request(url, headers={
             'Authorization': f'Bearer {supervisor_token}'
         })
-        with urllib.request.urlopen(req, timeout=10) as response:
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                return None
+
+        opener = urllib.request.build_opener(NoRedirect)
+        with opener.open(req, timeout=10) as response:
             image_data = response.read()
             content_type = response.headers.get('Content-Type', 'image/jpeg')
 
@@ -916,33 +1041,43 @@ def _call_media_service(service: str, extra_data: Optional[Dict] = None) -> bool
 def media_play_pause():
     """POST /api/media/play_pause - Toggle play/pause."""
     ok = _call_media_service('media_play_pause')
-    return jsonify({"ok": ok})
+    return jsonify({"ok": ok}), 200 if ok else 502
 
 
 @app.route('/api/media/next', methods=['POST'])
 def media_next():
     """POST /api/media/next - Skip to next track."""
     ok = _call_media_service('media_next_track')
-    return jsonify({"ok": ok})
+    return jsonify({"ok": ok}), 200 if ok else 502
 
 
 @app.route('/api/media/previous', methods=['POST'])
 def media_previous():
     """POST /api/media/previous - Skip to previous track."""
     ok = _call_media_service('media_previous_track')
-    return jsonify({"ok": ok})
+    return jsonify({"ok": ok}), 200 if ok else 502
 
 
 @app.route('/api/media/volume', methods=['POST'])
 def media_volume():
     """POST /api/media/volume - Set volume level (0.0 - 1.0)."""
     body = request.get_json(silent=True) or {}
+    if not isinstance(body, dict):
+        return jsonify({"error": "JSON object required"}), 400
     volume = body.get('volume_level')
     if volume is None:
         return jsonify({"error": "volume_level required"}), 400
-    volume = max(0.0, min(1.0, float(volume)))
+    try:
+        if isinstance(volume, bool):
+            raise ValueError
+        volume = float(volume)
+        if not math.isfinite(volume):
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({"error": "volume_level must be a finite number"}), 400
+    volume = max(0.0, min(1.0, volume))
     ok = _call_media_service('volume_set', {"volume_level": volume})
-    return jsonify({"ok": ok})
+    return jsonify({"ok": ok}), 200 if ok else 502
 
 
 @app.route('/photos/<path:filename>', methods=['GET'])
@@ -950,11 +1085,11 @@ def serve_photo(filename: str):
     """GET /photos/<filename> - Serve a photo file, decoding HEIC on demand."""
     config = load_config()
     photos_folder = config.get('photos_folder', '/media')
+    source = resolve_photo(photos_folder, filename)
+    if source is None or not source.is_file():
+        return jsonify({"error": "File not found"}), 404
 
     if Path(filename).suffix.lower() in HEIF_EXTENSIONS:
-        source = resolve_photo(photos_folder, filename)
-        if source is None or not source.is_file():
-            return jsonify({"error": "File not found"}), 404
         decoded = heif_jpeg(source)
         if decoded is None:
             return jsonify({"error": "Could not decode image"}), 415
@@ -1000,6 +1135,7 @@ def demo_config():
         "slide_interval_seconds": 30,
         "weather_entity": "weather.demo",
         "media_player_entity": "media_player.demo",
+        "doorbell_entity": "input_datetime.demo_doorbell",
         "clock_position": "bottom-center"
     }
     # ?night=1 forces the night window open so it can be previewed at any hour
@@ -1007,6 +1143,19 @@ def demo_config():
         config["night_mode_start"] = "00:00"
         config["night_mode_end"] = "23:59"
     return jsonify(config)
+
+
+@app.route('/api/demo/doorbell', methods=['GET'])
+def demo_doorbell():
+    timestamp = request.args.get('ring_at', type=float)
+    state = {'attributes': {'timestamp': timestamp}}
+    config = {**DEFAULT_CONFIG, 'doorbell_entity': 'input_datetime.demo_doorbell'}
+    return jsonify(doorbell_status(state, config, time.time()))
+
+
+@app.route('/api/demo/camera', methods=['GET'])
+def demo_camera():
+    return send_from_directory('static', 'demo-camera.html')
 
 
 @app.route('/api/demo/weather', methods=['GET'])

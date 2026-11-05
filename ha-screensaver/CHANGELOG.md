@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.5.0 (2026-11-05)
+
+### Features
+- **Doorbell camera override** — a configured `input_datetime` helper opens a camera dashboard above photos, music, the dashboard, and night mode. The view closes after 60 seconds (configurable), can be dismissed, and releases its camera stream on exit. Repeated polls do not prolong a ring; a new ring gets a new deadline. Recent rings survive reload and dismissed rings stay closed.
+- **Silent demo** — `?demo&doorbell=1` previews the camera override without Home Assistant, speaker playback, or phone notifications.
+
+### Fixes
+- Photos, motion clips, and album art now use encoded, ingress-relative URLs; the dashboard and camera iframe use the containing HA origin under HTTPS ingress.
+- Only the active photo and its outgoing crossfade are loaded, instead of decoding the whole photo library on a tablet.
+- Late media responses cannot reopen music mode after the screensaver exits or switches modes. Demo playback controls never call the real media player. `?demo&night=1` now actually forwards its night setting.
+- Image loads cannot darken the clock during night/music mode, and a left-edge tap exits those modes normally.
+- Concurrent workers serialize each photo conversion; cache cleanup leaves in-progress conversions alone. JSON caches are replaced atomically, and geocoding shares one rate limit across workers. Source changes within one second invalidate decoded images.
+- Media controls require same-origin JSON requests; unrestricted CORS was removed. The privileged album proxy accepts only image endpoints and never forwards its credentials through redirects. The photo route serves only supported images. Invalid volume requests return 400 and HA service failures return 502.
+- Startup writes options with a JSON serializer, preserving quotes and backslashes. The local runner uses a virtual environment and preserves an existing local config.
+- Updated Flask to 3.1.3 and Gunicorn to 26.2.0; removed unused Flask-CORS.
+- Updated the Home Assistant base image from Alpine 3.19 to the published 3.22 images.
+
+### Configuration
+- `doorbell_entity` — date-and-time helper updated by your doorbell automation; empty disables the feature.
+- `doorbell_camera_path` — relative HA dashboard/view path, default `/dashboard-camera`.
+- `doorbell_display_seconds` — camera timeout, default 60 seconds (5–300).
+
 ## 2.4.0 (2026-09-11)
 
 ### Features
